@@ -1,0 +1,90 @@
+import type { AxiomDef, AxiomId } from './types.ts';
+
+const LIST: AxiomDef[] = [
+  {
+    id: 'potenz',
+    name: 'Potenz',
+    desc: '+10 % Schaden',
+    color: 0xff8a8a,
+    icon: 'caret',
+    maxLevel: 5,
+    perLevel: [{ stat: 'might', value: 0.1 }],
+    locked: false,
+  },
+  {
+    id: 'frequenz',
+    name: 'Frequenz',
+    desc: '−8 % Abklingzeit',
+    color: 0x7ad7ff,
+    icon: 'clock',
+    maxLevel: 5,
+    perLevel: [{ stat: 'cooldown', value: -0.08 }],
+    locked: false,
+  },
+  {
+    id: 'skalierung',
+    name: 'Skalierung',
+    desc: '+10 % Fläche und Größe',
+    color: 0xb8ff7a,
+    icon: 'nested',
+    maxLevel: 5,
+    perLevel: [{ stat: 'area', value: 0.1 }],
+    locked: false,
+  },
+  {
+    id: 'symmetrie',
+    name: 'Symmetrie',
+    desc: '+1 Projektil, Kreis oder Strahl',
+    color: 0xe07aff,
+    icon: 'mirror',
+    maxLevel: 2,
+    perLevel: [{ stat: 'amount', value: 1 }],
+    locked: true,
+  },
+  {
+    id: 'volumen',
+    name: 'Volumen',
+    desc: '+20 Max-HP',
+    color: 0xffe07a,
+    icon: 'sphere',
+    maxLevel: 5,
+    perLevel: [{ stat: 'maxHp', value: 20 }],
+    locked: false,
+  },
+  {
+    id: 'integral',
+    name: 'Integral',
+    desc: '+0,25 HP pro Sekunde',
+    color: 0x7affb8,
+    icon: 'integral',
+    maxLevel: 5,
+    perLevel: [{ stat: 'regen', value: 0.25 }],
+    locked: true,
+  },
+  {
+    id: 'beschleunigung',
+    name: 'Beschleunigung',
+    desc: '+8 % Lauftempo',
+    color: 0x8aa2ff,
+    icon: 'chevrons',
+    maxLevel: 5,
+    perLevel: [{ stat: 'moveSpeed', value: 0.08 }],
+    locked: false,
+  },
+  {
+    id: 'gravitation',
+    name: 'Gravitation',
+    desc: '+30 % Sammelradius',
+    color: 0xf2f2ff,
+    icon: 'inward',
+    maxLevel: 5,
+    perLevel: [{ stat: 'magnet', value: 0.3 }],
+    locked: false,
+  },
+];
+
+export const AXIOMS: Readonly<Record<AxiomId, AxiomDef>> = Object.fromEntries(
+  LIST.map((a) => [a.id, a]),
+) as Record<AxiomId, AxiomDef>;
+
+export const AXIOM_LIST: readonly AxiomDef[] = LIST;
