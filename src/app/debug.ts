@@ -3,7 +3,7 @@ import { CHARACTERS } from '../content/characters.ts';
 import { ENEMIES, ENEMY_LIST } from '../content/enemies.ts';
 import { PROOFS } from '../content/meta.ts';
 import { S } from '../content/strings.de.ts';
-import { CAPS } from '../content/tuning.ts';
+import { CAPS, COMPLEXITY } from '../content/tuning.ts';
 import type { CharacterId } from '../content/types.ts';
 import { BASE_WEAPONS, THEOREMS } from '../content/weapons.ts';
 import type { SaveData } from '../meta/save.ts';
@@ -90,21 +90,30 @@ export function applyDebugSave(save: SaveData, o: LaunchOptions): void {
   if (o.splitter !== null) save.splitter = o.splitter;
   if (!o.unlock) return;
   save.proofs = PROOFS.map((p) => p.id);
+  save.stats.bestComplexity = Math.max(save.stats.bestComplexity, COMPLEXITY.max - 1);
   save.seen.weapons = [...BASE_WEAPONS, ...THEOREMS].map((d) => d.id);
   save.seen.axioms = AXIOM_LIST.map((d) => d.id);
   save.seen.enemies = ENEMY_LIST.map((d) => d.id);
 }
 
-/** Typical level of an unassisted run at a given second (drives the ?t= build). */
+/**
+ * Typical level of a run at a given second (drives the ?t= build); balance-sim medians with a
+ * strong Reißbrett, past 20:00 from endless runs.
+ */
 const LEVEL_AT: readonly (readonly [number, number])[] = [
   [0, 1],
   [60, 4],
-  [180, 8],
-  [300, 14],
-  [480, 24],
-  [600, 32],
-  [780, 44],
-  [900, 53],
+  [180, 11],
+  [300, 18],
+  [480, 28],
+  [600, 33],
+  [780, 45],
+  [900, 51],
+  [1080, 64],
+  [1200, 77],
+  [1500, 95],
+  [1800, 117],
+  [2400, 140],
 ];
 
 export function levelAt(t: number): number {
@@ -203,10 +212,13 @@ export class DebugOverlay {
     this.simMs = 0;
     this.renderMs = 0;
     if (!this.visible) return;
+    // Every number is padded to a fixed width: the monospaced box keeps its shape.
+    const n = (v: number, width: number): string => String(v).padStart(width);
+    const ms = (v: number, width: number): string => v.toFixed(2).padStart(width);
     const lines = [
-      `FPS ${this.fps.toFixed(0).padStart(3)} (max ${this.worst.toFixed(0)} ms)   sim ${this.sim.toFixed(2)} ms   render ${this.render.toFixed(2)} ms`,
-      `Gegner ${w.enemies.count}  Proj ${w.projectiles.count}  Kugeln ${w.bullets.count}  Kristalle ${w.gems.count}  VFX ${particles}`,
-      `Zustand ${state}  Tick ${w.tick}${w.god ? '  GOTT' : ''}`,
+      `FPS ${this.fps.toFixed(0).padStart(3)} (max ${this.worst.toFixed(0).padStart(4)} ms)   sim ${ms(this.sim, 6)} ms   render ${ms(this.render, 6)} ms`,
+      `Gegner ${n(w.enemies.count, 4)}  Proj ${n(w.projectiles.count, 4)}  Kugeln ${n(w.bullets.count, 4)}  Kristalle ${n(w.gems.count, 4)}  VFX ${n(particles, 5)}`,
+      `Zustand ${state.padEnd(8)}  Tick ${n(w.tick, 7)}${w.god ? '  GOTT' : ''}`,
     ];
     if (hint) lines.push(S.debug.on);
     this.root.textContent = lines.join('\n');

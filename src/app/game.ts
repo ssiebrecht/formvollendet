@@ -498,7 +498,7 @@ export class Game {
   private closePause(): void {
     this.pause.close();
     this.scene = 'run';
-    if (this.session.state === 'draft') this.draft.open(this.session);
+    if (this.session.state === 'draft') this.draft.open(this.session, true);
     this.input.suppressAbility();
   }
 

@@ -13,7 +13,7 @@ import {
   sheetFooter,
   sheetHead,
   titleBlock,
-  unlockChip,
+  unlockChips,
 } from './screen.ts';
 
 function progressText(c: ProofCondition, value: number, target: number): string {
@@ -24,8 +24,13 @@ function progressText(c: ProofCondition, value: number, target: number): string 
       return `${value} / ${S.proofs.vertices(target)}`;
     case 'killsInRun':
       return `${num(value)} / ${num(target)}`;
+    case 'complexityCleared':
+      return `${S.select.level(value)} / ${S.select.level(target)}`;
     case 'theorems':
     case 'bossKilled':
+    case 'bossKillsInRun':
+    case 'reachLevel':
+    case 'weaponLevel':
       return `${value} / ${target}`;
   }
 }
@@ -55,12 +60,7 @@ function proofItem(p: ProofDef, index: number, proven: boolean, stats: LifetimeS
       'pf-main',
       h('div', 'pf-name', p.name),
       h('div', 'pf-desc', p.desc),
-      h(
-        'div',
-        'pf-unlocks',
-        h('span', 'pf-key', S.proofs.unlocks),
-        ...p.unlocks.map((u) => unlockChip(u)),
-      ),
+      h('div', 'pf-unlocks', h('span', 'pf-key', S.proofs.unlocks), ...unlockChips(p.unlocks)),
     ),
     state,
   );
@@ -107,9 +107,14 @@ export class ProofsScreen extends Screen {
       [S.proofs.kills, num(st.kills)],
       [S.proofs.bestTime, clock(st.bestTime)],
       [S.proofs.bestLevel, num(st.bestLevel)],
+      [S.proofs.bestWeaponLevel, num(st.bestWeaponLevel)],
       [S.proofs.bestKills, num(st.bestKills)],
       [S.proofs.theorems, num(st.theorems)],
       [S.proofs.bossKills, num(st.bossKills)],
+      [
+        S.proofs.bestComplexity,
+        st.bestComplexity < 0 ? S.results.none : S.select.level(st.bestComplexity),
+      ],
       [S.proofs.splitterEarned, num(st.splitterEarned)],
     ];
     this.stats.replaceChildren(

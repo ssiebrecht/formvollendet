@@ -1,5 +1,5 @@
 import { ENEMIES } from '../../content/enemies.ts';
-import { BOSS, COMPLEXITY, DT, ticks } from '../../content/tuning.ts';
+import { BOSS, complexityBossHp, DT, ticks, timeHp } from '../../content/tuning.ts';
 import type { EnemyDef } from '../../content/types.ts';
 import { vertexAngle } from '../math/geometry.ts';
 import type { Enemy, World } from '../world.ts';
@@ -21,14 +21,21 @@ export function bossRadius(e: Enemy): number {
   return BOSS.radius[e.boss] ?? e.r;
 }
 
-/** "Sierpinski": a large triangle that splits into three half-size copies instead of dying. */
+/**
+ * "Sierpinski": a large triangle that splits into three half-size copies instead of dying. Its HP
+ * grows with time like every enemy's, so each endless return is tougher, but only linearly with
+ * complexity.
+ */
 export function spawnBoss(w: World, def: EnemyDef): void {
   const p = w.player;
-  const hp = def.hp * (1 + w.cfg.complexity * COMPLEXITY.hpPerLevel);
+  const d = w.director;
+  const hp = def.hp * timeHp(w.time / 60) * complexityBossHp(w.cfg.complexity) * w.mut.bossHp;
   const e = spawnPiece(w, def, 0, p.x, p.y - w.view.halfH - BOSS.radius[0]!, hp, 0);
   if (!e) return;
-  w.director.bossSpawned = true;
-  w.director.bossMaxHp = hp * (1 + FUTURE_FACTOR[0]!);
+  d.bossSpawns++;
+  d.bossSpawned = true;
+  d.bossDefeated = false;
+  d.bossMaxHp = hp * (1 + FUTURE_FACTOR[0]!);
   w.events.push({ type: 'boss', enemy: def.id });
 }
 
@@ -50,7 +57,7 @@ function spawnPiece(
   e.shells = e.shellsMax = 1;
   e.speed = BOSS.speed[depth]!;
   e.damage = BOSS.contactDamage;
-  e.xp = BOSS.xp / Math.pow(3, depth);
+  e.xp = (BOSS.xp / Math.pow(3, depth)) * w.mut.xp;
   e.rot = rot;
   e.timer = ticks(BOSS.volleyInterval[depth]!);
   e.timer2 = ticks(BOSS.spawnInterval);
@@ -152,6 +159,7 @@ export function onBossPieceDestroyed(w: World, e: Enemy): void {
   }
   w.director.bossDefeated = true;
   w.run.bossKilled = true;
+  w.run.bossKills++;
   victorySweep(w);
   const reward = spawnPickup(w, 'splitter', e.x, e.y, BOSS.splitter);
   if (reward) reward.attracted = true;

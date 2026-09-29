@@ -118,10 +118,12 @@
 
 /* ---------------------------------------------------------------------------------- sheet */
 
+/* Every sheet has the same frame: switching sheets or selections never resizes it. The
+   content scrolls inside (`.sheet-scroll`) instead. */
 .sheet {
   position: relative;
   width: min(1200px, 100%);
-  max-height: 100%;
+  height: min(880px, 100%);
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -184,6 +186,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--faint) transparent;
 }
@@ -261,9 +264,23 @@
   gap: 12px;
 }
 
+/* Footer rows swap in place (main row ↔ confirm row); they never wrap into a taller footer. */
+.foot-left,
+.foot-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .foot-prompt {
   font-size: 14px;
   color: var(--red);
+}
+
+.foot-actions .foot-prompt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Title block ("Schriftfeld"). */
@@ -315,25 +332,6 @@
   font-weight: 700;
   line-height: 1;
   text-shadow: 0 0 16px rgba(183, 123, 255, 0.5);
-}
-
-.pips {
-  display: inline-flex;
-  gap: 3px;
-}
-
-.pips > i {
-  width: 11px;
-  height: 11px;
-  border: 1px solid var(--tone, var(--cyan));
-  opacity: 0.45;
-  transform: rotate(45deg) scale(0.78);
-}
-
-.pips > i.on {
-  opacity: 1;
-  background: var(--tone, var(--cyan));
-  box-shadow: 0 0 6px var(--tone, var(--cyan));
 }
 
 /* Segmented gauge, like the scale on an instrument. */
@@ -399,6 +397,13 @@
   font-size: 13px;
   border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent);
   background: color-mix(in srgb, var(--tone) 7%, transparent);
+}
+
+.unlock-final {
+  padding: 2px 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--gold);
 }
 
 .stamp {
@@ -839,6 +844,7 @@
 .select-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-content: start;
   gap: 22px;
   padding: 10px;
   margin: -10px;
@@ -1026,11 +1032,27 @@
   color: var(--dim);
 }
 
+/* Mode and start on the first row, the complexity ruler across the full width below. */
 .select-params {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'mode . start'
+    'level level level';
   align-items: end;
-  gap: 28px;
+  gap: 16px 28px;
+}
+
+.select-params > .param {
+  grid-area: mode;
+}
+
+.select-params > .stepper {
+  grid-area: level;
+}
+
+.select-params > .start-btn {
+  grid-area: start;
 }
 
 .param {
@@ -1084,7 +1106,7 @@
 }
 
 .mode-desc {
-  max-width: 240px;
+  width: 240px;
   font-size: 12px;
   line-height: 1.35;
   color: var(--dim);
@@ -1103,13 +1125,20 @@
   color: var(--gold);
 }
 
+/* Label on top; controls left, the two description lines right of them. */
 .stepper {
   --tone: var(--gold);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 28px;
+  min-width: 0;
   padding: 4px 10px;
   cursor: pointer;
+}
+
+.stepper > .param-label {
+  grid-column: 1 / -1;
 }
 
 .step-ctrl {
@@ -1140,12 +1169,68 @@
   color: var(--gold);
 }
 
-.step-desc {
-  font-size: 12px;
+/*
+ * Komplexitäts-Maßstab: one tick per level like on a ruler, every fifth longer and labelled.
+ * Reached levels are filled, open ones outlined, locked ones dashed. Fixed width.
+ */
+.k-ruler {
+  display: grid;
+  grid-template-columns: repeat(20, 9px);
+  grid-template-rows: 18px 12px;
+  column-gap: 3px;
+  align-items: end;
+}
+
+.k-ruler > i {
+  grid-row: 1;
+  height: 11px;
+  border: 1px solid var(--gold);
+  opacity: 0.5;
+}
+
+.k-ruler > i.major {
+  height: 18px;
+}
+
+.k-ruler > i.on {
+  opacity: 1;
+  background: var(--gold);
+  box-shadow: 0 0 6px rgba(255, 210, 63, 0.45);
+}
+
+.k-ruler > i.locked {
+  border-style: dashed;
+  border-color: var(--faint);
+}
+
+.k-ruler > b {
+  grid-row: 2;
+  justify-self: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
   color: var(--dim);
 }
 
-.stepper.locked .pips,
+/* Always two lines tall, one per fact: the row below never moves while stepping. */
+.step-desc {
+  display: block;
+  height: calc(2 * 1.35em);
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+.step-line {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stepper.locked .k-ruler,
 .stepper.locked .step-btn,
 .stepper.locked .step-value {
   opacity: 0.4;
@@ -1191,6 +1276,41 @@
   color: var(--dim);
 }
 
+/* Erweiterungen I–III: dashed until a Beweis opens one. */
+.sb-tiers {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  cursor: help;
+}
+
+.sb-tiers-label {
+  margin-right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sb-tiers > b {
+  min-width: 30px;
+  padding: 1px 0;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--faint);
+  border: 1px dashed var(--faint);
+}
+
+.sb-tiers > b.on {
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  box-shadow: 0 0 8px rgba(255, 210, 63, 0.35);
+}
+
 .shop-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1206,13 +1326,18 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  min-height: 138px;
-  padding: 11px 14px 12px;
+  min-height: 146px;
+  padding: 11px 14px 10px;
   text-align: left;
   background: var(--tile);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-top: 2px solid color-mix(in srgb, var(--tone) 65%, transparent);
   cursor: pointer;
+}
+
+/* The grid scrolls, so its rows take the tiles' min-content height: nothing may shrink. */
+.shop-tile > * {
+  flex-shrink: 0;
 }
 
 .shop-tile.focused {
@@ -1244,15 +1369,53 @@
 
 .st-desc {
   font-size: 13px;
+  /* Fixed, so a fallback glyph (the minus sign) cannot make one tile taller. */
+  line-height: 18px;
   color: var(--soft);
+}
+
+/* Rank bar: one cell per rank up to Erweiterung III, on one scale for every tile. */
+.st-bar {
+  display: grid;
+  grid-template-columns: repeat(var(--cells), minmax(0, 1fr));
+  gap: 2px;
+  height: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+  box-sizing: content-box;
+}
+
+.st-bar > i {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
+}
+
+.st-bar > i.own {
+  background: var(--tone);
+  border-color: var(--tone);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--tone) 55%, transparent);
+}
+
+.st-bar > i.shut {
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+/* Where the next Erweiterung's ranks begin: a long tick in the gap, like on a ruler. */
+.st-bar > i.cut::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: -3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .st-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: 6px;
+  justify-content: flex-end;
+  min-height: 24px;
 }
 
 .st-cost {
@@ -1275,6 +1438,36 @@
   color: var(--gold);
 }
 
+.shop-tile.capped .st-cost {
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.shop-tile.locked {
+  background: transparent;
+  border-style: dashed;
+  border-top-color: rgba(255, 255, 255, 0.18);
+}
+
+.shop-tile.locked .shape-icon {
+  opacity: 0.3;
+}
+
+.shop-tile.locked .st-name,
+.shop-tile.locked .st-desc {
+  opacity: 0.45;
+}
+
+.shop-tile.locked .st-cost {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--gold);
+}
+
 .shop-tile.bought {
   animation: bought 0.55s ease-out;
 }
@@ -1294,6 +1487,7 @@
 .proofs-body {
   display: grid;
   grid-template-columns: 1fr 300px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 28px;
   flex: 1 1 auto;
   min-height: 0;
@@ -1438,9 +1632,11 @@
   color: var(--cyan);
 }
 
+/* One fixed row: the detail panel scrolls on its own and never stretches the sheet. */
 .codex-body {
   display: grid;
   grid-template-columns: 1fr 360px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 24px;
   flex: 1 1 auto;
   min-height: 0;
@@ -1488,6 +1684,7 @@
   gap: 8px;
   padding: 18px;
   overflow: hidden auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--faint) transparent;
   background: var(--tile);
@@ -1557,6 +1754,24 @@
   color: var(--dim);
 }
 
+/* Überstufen: under a dashed rule, label on its own line (it is wider than "Lv 8"). */
+.cd-levels li.over {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--frame-faint);
+  color: var(--gold);
+}
+
+.cd-levels li.over + li.over {
+  margin-top: 0;
+  border-top: none;
+}
+
+.cd-levels li.over .cd-lv {
+  display: block;
+  width: auto;
+}
+
 .cd-recipe {
   margin-top: 6px;
   padding: 6px 10px;
@@ -1574,10 +1789,6 @@
 }
 
 /* ---------------------------------------------------------------- Blatt 6: Einstellungen */
-
-.settings-sheet {
-  width: min(1000px, 100%);
-}
 
 .settings-body {
   display: grid;
@@ -1721,11 +1932,8 @@
 
 @media (max-width: 1100px) {
   .select-params {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .start-btn {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'mode' 'level' 'start';
   }
 }
 
@@ -1735,6 +1943,15 @@
   .codex-body,
   .settings-body {
     grid-template-columns: 1fr;
+  }
+
+  /* Stacked: fixed shares, so a long detail text scrolls instead of squeezing the grid. */
+  .codex-body {
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .proofs-body {
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .title-main {

@@ -1,6 +1,7 @@
 import type { ProofDef } from '../content/types.ts';
-import { COMPLEXITY, SPLITTER } from '../content/tuning.ts';
+import { COMPLEXITY, complexitySplitter, SPLITTER } from '../content/tuning.ts';
 import type { World } from '../sim/world.ts';
+import { maxComplexity } from './progression.ts';
 import { evaluateProofs } from './proofs.ts';
 import type { SaveData } from './save.ts';
 
@@ -13,6 +14,10 @@ export interface RunSummary {
   maxVertices: number;
   theorems: number;
   bossKilled: boolean;
+  /** Boss fights won (endless mode brings Sierpinski back). */
+  bossKills: number;
+  /** Highest weapon or theorem level. */
+  maxWeaponLevel: number;
   /** Splitter picked up during the run (drops, elites, boss, cubes). */
   splitter: number;
   /** The run's Gier multiplier. */
@@ -32,6 +37,8 @@ export function summarizeRun(w: World, won: boolean): RunSummary {
     maxVertices: w.run.maxVertices,
     theorems: w.run.theorems.length,
     bossKilled: w.run.bossKilled,
+    bossKills: w.run.bossKills,
+    maxWeaponLevel: w.run.maxWeaponLevel,
     splitter: w.run.splitter,
     greed: w.stats.greed,
     complexity: w.cfg.complexity,
@@ -56,7 +63,7 @@ export function runReward(r: RunSummary): Reward {
   const collected = r.splitter;
   const time = Math.floor(r.time / 60) * SPLITTER.perMinute;
   const kills = Math.floor(r.kills / 100) * SPLITTER.perHundredKills;
-  const multiplier = r.greed * (1 + r.complexity * COMPLEXITY.splitterPerLevel);
+  const multiplier = r.greed * complexitySplitter(r.complexity);
   return {
     collected,
     time,
@@ -72,6 +79,8 @@ export interface RunOutcome {
   proofs: ProofDef[];
   /** New Kompendium entries. */
   discovered: number;
+  /** Complexity level this run's boss win opened, beyond the ones a Beweis opens; else null. */
+  complexityOpened: number | null;
 }
 
 function merge(into: string[], ids: readonly string[]): number {
@@ -87,6 +96,7 @@ function merge(into: string[], ids: readonly string[]): number {
 /** Books a finished run into the save: Splitter, lifetime stats, Kompendium, Beweise. */
 export function recordRun(save: SaveData, r: RunSummary): RunOutcome {
   const reward = runReward(r);
+  const levelsBefore = maxComplexity(save);
   save.splitter += reward.total;
   const s = save.stats;
   s.runs++;
@@ -98,11 +108,17 @@ export function recordRun(save: SaveData, r: RunSummary): RunOutcome {
   s.bestVertices = Math.max(s.bestVertices, r.maxVertices);
   s.bestTheorems = Math.max(s.bestTheorems, r.theorems);
   s.theorems += r.theorems;
-  if (r.bossKilled) s.bossKills++;
+  s.bossKills += r.bossKills;
+  s.bestBossKills = Math.max(s.bestBossKills, r.bossKills);
+  s.bestWeaponLevel = Math.max(s.bestWeaponLevel, r.maxWeaponLevel);
+  if (r.bossKilled) s.bestComplexity = Math.max(s.bestComplexity, r.complexity);
   s.splitterEarned += reward.total;
   const discovered =
     merge(save.seen.weapons, r.weapons) +
     merge(save.seen.axioms, r.axioms) +
     merge(save.seen.enemies, r.enemies);
-  return { reward, proofs: evaluateProofs(save, r), discovered };
+  const proofs = evaluateProofs(save, r);
+  const levels = maxComplexity(save);
+  const complexityOpened = levels > levelsBefore && levels > COMPLEXITY.open ? levels : null;
+  return { reward, proofs, discovered, complexityOpened };
 }

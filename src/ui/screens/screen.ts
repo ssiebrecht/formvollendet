@@ -1,10 +1,10 @@
 import { AXIOMS } from '../../content/axioms.ts';
 import { CHARACTERS } from '../../content/characters.ts';
-import { PROOFS } from '../../content/meta.ts';
+import { META_UPGRADES, PROOFS } from '../../content/meta.ts';
 import { COLORS, hex } from '../../content/palette.ts';
 import { ngon, starPolygon } from '../../content/shapes.ts';
 import { S, num } from '../../content/strings.de.ts';
-import type { CharacterDef, ProofDef, ShapeId, UnlockId } from '../../content/types.ts';
+import type { CharacterDef, ProofDef, ShapeId, StatKey, UnlockId } from '../../content/types.ts';
 import { WEAPONS } from '../../content/weapons.ts';
 import type { Action } from '../../app/input.ts';
 import type { MetaStore } from '../../app/meta.ts';
@@ -125,12 +125,6 @@ export function splitterAmount(n: number, cls = 'splitter-amount', size = 16): H
   return h('span', cls, shapeIcon('splitter', COLORS.splitter, size), num(n));
 }
 
-export function pips(rank: number, max: number): HTMLElement {
-  const el = h('span', 'pips');
-  for (let i = 0; i < max; i++) el.append(h('i', i < rank ? 'on' : null));
-  return el;
-}
-
 export function backButton(label: string = S.menu.back): HTMLButtonElement {
   return h('button', 'btn ghost cad', label);
 }
@@ -154,6 +148,54 @@ export function theoremLine(lead: string, text: string, qed = false): HTMLElemen
   );
 }
 
+// ------------------------------------------------------------------------------ Reißbrett
+
+/** Tile colour by what a Reißbrett entry does: attack, survival, economy, draft control. */
+const META_TONES: Partial<Record<StatKey, string>> = {
+  might: 'var(--cyan)',
+  cooldown: 'var(--cyan)',
+  area: 'var(--cyan)',
+  projSpeed: 'var(--cyan)',
+  crit: 'var(--cyan)',
+  critMult: 'var(--cyan)',
+  duration: 'var(--cyan)',
+  amount: 'var(--cyan)',
+  startLevel: 'var(--cyan)',
+  armor: 'var(--mint)',
+  maxHp: 'var(--mint)',
+  regen: 'var(--mint)',
+  revival: 'var(--mint)',
+  moveSpeed: 'var(--gold)',
+  magnet: 'var(--gold)',
+  luck: 'var(--gold)',
+  growth: 'var(--gold)',
+  greed: 'var(--gold)',
+};
+const META_ICON_COLORS: Partial<Record<StatKey, number>> = {
+  armor: 0x6dff8a,
+  maxHp: 0x6dff8a,
+  regen: 0x6dff8a,
+  revival: 0x6dff8a,
+  moveSpeed: 0xffd23f,
+  magnet: 0xffd23f,
+  luck: 0xffd23f,
+  growth: 0xffd23f,
+  greed: 0xffd23f,
+  reroll: COLORS.splitter,
+  banish: COLORS.splitter,
+  skip: COLORS.splitter,
+  draftSize: COLORS.splitter,
+  cubeRolls: COLORS.splitter,
+};
+
+export function metaTone(stat: StatKey): string {
+  return META_TONES[stat] ?? 'var(--violet)';
+}
+
+export function metaIconColor(stat: StatKey): number {
+  return META_ICON_COLORS[stat] ?? 0x3ff0ff;
+}
+
 // ------------------------------------------------------------------------------- unlocks
 
 export interface UnlockLook {
@@ -165,6 +207,11 @@ export interface UnlockLook {
 export function unlockLook(id: UnlockId): UnlockLook {
   if (id === 'mode:endless') return { text: S.unlock.endless, icon: 'ring', color: 0xffffff };
   const [kind, key] = id.split(':') as [string, string];
+  if (kind === 'tier') return { text: S.unlock.tier, icon: 'plus', color: 0xffd23f };
+  if (kind === 'meta') {
+    const d = META_UPGRADES.find((u) => u.id === key)!;
+    return { text: S.unlock.meta(d.name), icon: d.icon, color: metaIconColor(d.stat) };
+  }
   if (kind === 'weapon') {
     const d = WEAPONS[key as keyof typeof WEAPONS];
     return { text: S.unlock.weapon(d.name), icon: d.icon, color: d.color };
@@ -186,6 +233,12 @@ export function unlockChip(id: UnlockId): HTMLElement {
   const chip = h('span', 'unlock-chip', shapeIcon(look.icon, look.color, 18), look.text);
   chip.style.setProperty('--tone', hex(look.color));
   return chip;
+}
+
+/** Chips for everything a Beweis opens; the last one opens nothing but itself. */
+export function unlockChips(ids: readonly UnlockId[]): Node[] {
+  if (ids.length === 0) return [h('span', 'unlock-final', S.proofs.final)];
+  return ids.map((u) => unlockChip(u));
 }
 
 /** The Beweis that opens an unlock, for "locked" hints. */

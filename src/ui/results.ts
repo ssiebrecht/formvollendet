@@ -12,7 +12,7 @@ import { h, shapeIcon, show } from './dom.ts';
 import { MenuNav } from './menu.ts';
 import { SILENT, type UiSound } from './nav.ts';
 import { qedStamp } from './screens/proofs.ts';
-import { splitterAmount, unlockChip } from './screens/screen.ts';
+import { splitterAmount, unlockChips } from './screens/screen.ts';
 
 interface SourceLook {
   name: string;
@@ -72,7 +72,7 @@ function provenRow(p: ProofDef): HTMLElement {
       'div',
       'proven-main',
       h('div', 'proven-name', `${S.proofs.number(PROOFS.indexOf(p) + 1)} · ${p.name}`),
-      h('div', 'proven-unlocks', ...p.unlocks.map((u) => unlockChip(u))),
+      h('div', 'proven-unlocks', ...unlockChips(p.unlocks)),
     ),
   );
 }
@@ -93,6 +93,7 @@ export interface ResultsInfo {
  */
 export class ResultsView {
   readonly root: HTMLElement;
+  private readonly panel: HTMLElement;
   onAgain: () => void = () => undefined;
   onTitle: () => void = () => undefined;
 
@@ -133,31 +134,28 @@ export class ResultsView {
     this.titleBtn.addEventListener('click', () => {
       this.onTitle();
     });
-    this.root = h(
+    this.panel = h(
       'div',
-      'modal results hidden',
+      'panel results-panel',
+      this.title,
+      this.sub,
       h(
         'div',
-        'panel results-panel',
-        this.title,
-        this.sub,
+        'results-body',
+        h('div', 'results-col', this.build, this.numbers),
+        h('div', 'results-col wide', h('div', 'section-title', S.results.damage), this.damage),
         h(
           'div',
-          'results-body',
-          h('div', 'results-col', this.build, this.numbers),
-          h('div', 'results-col wide', h('div', 'section-title', S.results.damage), this.damage),
-          h(
-            'div',
-            'results-col',
-            h('div', 'section-title', S.results.reward),
-            this.ledger,
-            this.notes,
-            this.proofs,
-          ),
+          'results-col',
+          h('div', 'section-title', S.results.reward),
+          this.ledger,
+          this.notes,
+          this.proofs,
         ),
-        h('div', 'menu-row', this.againBtn, this.titleBtn),
       ),
+      h('div', 'menu-row', this.againBtn, this.titleBtn),
     );
+    this.root = h('div', 'modal results hidden', this.panel);
     parent.append(this.root);
   }
 
@@ -196,6 +194,8 @@ export class ResultsView {
     this.fillReward(info);
 
     show(this.root, true);
+    // Every run's report starts at its title, not where the last one was scrolled to.
+    this.panel.scrollTop = 0;
     this.nav.set([this.againBtn, this.titleBtn], 0);
   }
 
@@ -248,6 +248,9 @@ export class ResultsView {
         statRow(S.results.multiplier, factor(r.multiplier)),
         statRow(S.results.total, splitterAmount(r.total), 'stat-row ledger-total'),
       );
+      if (o.complexityOpened !== null) {
+        notes.push(h('div', 'results-note unlock', S.results.complexityOpened(o.complexityOpened)));
+      }
       if (o.discovered > 0)
         notes.push(h('div', 'results-note', S.results.discovered(o.discovered)));
     } else {

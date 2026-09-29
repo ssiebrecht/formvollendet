@@ -3,6 +3,7 @@ import { ABILITIES, CHARACTERS } from '../../content/characters.ts';
 import { ENEMIES } from '../../content/enemies.ts';
 import { hex } from '../../content/palette.ts';
 import { S, num } from '../../content/strings.de.ts';
+import { OVER } from '../../content/tuning.ts';
 import type {
   AxiomId,
   CharacterId,
@@ -20,7 +21,7 @@ import {
   codexProgress,
 } from '../../meta/codex.ts';
 import type { SaveData } from '../../meta/save.ts';
-import { maxLevel } from '../../sim/stats.ts';
+import { axiomMaxLevel, coreLevel } from '../../sim/stats.ts';
 import { h, shapeIcon } from '../dom.ts';
 import {
   Screen,
@@ -222,7 +223,10 @@ export class CodexScreen extends Screen {
         const d = WEAPONS[e.id as WeaponId];
         const rows = [row(S.codex.damage, num(d.base.damage))];
         if (d.base.cooldown > 0) rows.push(row(S.codex.cooldown, seconds(d.base.cooldown)));
-        rows.push(row(S.codex.levels, S.codex.maxLevel(maxLevel(d))));
+        rows.push(row(S.codex.levels, S.codex.maxLevel(OVER.maxLevel)));
+        const core = coreLevel(d);
+        const every = OVER.milestoneEvery;
+        const first = (Math.floor(core / every) + 1) * every;
         const nodes: Node[] = [
           h('p', 'cd-desc', d.desc),
           h('div', 'stat-list', ...rows),
@@ -232,6 +236,21 @@ export class CodexScreen extends Screen {
             ...d.levels.map((lv, k) =>
               h('li', null, h('span', 'cd-lv', S.codex.levelLine(k + 2)), lv.text),
             ),
+            // Überstufen: the damage step, then the milestone cycle.
+            h(
+              'li',
+              'over',
+              h('span', 'cd-lv', S.codex.overFrom(core + 1)),
+              S.codex.overDamage(Math.round(OVER.damagePerLevel * 100)),
+            ),
+            d.over
+              ? h(
+                  'li',
+                  'over',
+                  h('span', 'cd-lv', S.codex.milestoneLevels(first, first + every)),
+                  d.over.map((m) => m.text).join(' → '),
+                )
+              : null,
           ),
         ];
         const r = recipe(d, save);
@@ -245,7 +264,11 @@ export class CodexScreen extends Screen {
         const nodes: Node[] = [h('p', 'cd-desc', d.desc)];
         if (parent && axiom)
           nodes.push(
-            h('div', 'stat-list', row(S.codex.proof, S.codex.recipe(parent.name, axiom.name))),
+            h(
+              'div',
+              'stat-list',
+              row(S.codex.proof, S.codex.recipe(parent.name, axiom.name, coreLevel(parent))),
+            ),
           );
         return nodes;
       }
@@ -256,7 +279,8 @@ export class CodexScreen extends Screen {
             'div',
             'stat-list',
             row(S.codex.perLevel, d.desc),
-            row(S.codex.levels, S.codex.maxLevel(d.maxLevel)),
+            row(S.codex.levels, S.codex.maxLevel(axiomMaxLevel(d))),
+            d.over ? row(S.codex.over, d.over.text) : null,
           ),
         ];
       }

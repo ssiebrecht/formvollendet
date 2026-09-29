@@ -1,8 +1,8 @@
 # FORMVOLLENDET
 
-**Game-Design-Dokument** · Arbeitstitel · Stand 28.09.2026 · Konzept für das MVP (Meilensteine M0–M5)
+**Game-Design-Dokument** · Arbeitstitel · Stand 29.09.2026 · MVP (Meilensteine M0–M5) und Langzeit-Ausbau
 
-> **Hinweis zu allen Zahlen:** Die Werte in diesem Dokument geben den Stand der Implementierung wieder. Verbindlich sind die Datentabellen in `src/content` (vor allem `tuning.ts`, `weapons.ts`, `axioms.ts`, `enemies.ts`, `waves.ts`, `characters.ts` und `meta.ts`); sie werden per Balance-Simulation (`scripts/sim.ts`) weiter getunt, und bei Abweichungen gilt der Code. Alle Meilensteine des MVP sind fertig: ein kompletter 15-Minuten-Run (M0–M3); Speicherstand, Splitter, Reißbrett, Beweise, Titel und Formwahl, Kompendium, Einstellungs-Screen, Audio, Endlos-Modus und Komplexität (M4); Balance, Juice und Politur (M5). Was darüber hinausgeht, trägt den Status-Marker _(Ausbau)_. Kursive Tabellenwerte kennzeichnen nur noch Entwürfe, für die es keinen Code gibt.
+> **Hinweis zu allen Zahlen:** Die Werte in diesem Dokument geben den Stand der Implementierung wieder. Verbindlich sind die Datentabellen in `src/content` (vor allem `tuning.ts`, `weapons.ts`, `axioms.ts`, `enemies.ts`, `waves.ts`, `characters.ts` und `meta.ts`); sie werden per Balance-Simulation (`scripts/sim.ts`) weiter getunt, und bei Abweichungen gilt der Code. Alle Meilensteine des MVP sind fertig: ein kompletter Run (M0–M3); Speicherstand, Splitter, Reißbrett, Beweise, Titel und Formwahl, Kompendium, Einstellungs-Screen, Audio, Endlos-Modus und Komplexität (M4); Balance, Juice und Politur (M5). Darauf baut der **Langzeit-Ausbau** auf: Menüs mit festen Fenstergrößen, ein 20-Minuten-Run, Überstufen bis Lv 99 (7.4), ein Endlos-Rhythmus mit wiederkehrendem Boss und die Komplexitäts-Leiter K 0–20 mit Mutatoren (10.5), dazu ein Reißbrett mit drei Erweiterungen, sechs neuen Einträgen und zehn neuen Beweisen (10.2, 10.3). Was darüber hinausgeht, trägt den Status-Marker _(Ausbau)_. Kursive Tabellenwerte kennzeichnen nur noch Entwürfe, für die es keinen Code gibt.
 
 ---
 
@@ -15,7 +15,7 @@
 | **Genre**         | Bullet Heaven / Survivors-like (Vampire-Survivors-Genre), Rogue-Lite mit Meta-Progression                                                                      |
 | **Plattform**     | Desktop-Browser, statisch hostbar, keine Installation                                                                                                          |
 | **Steuerung**     | Tastatur oder Gamepad: Bewegen plus ein aktiver Signatur-Skill, alle Waffen feuern automatisch                                                                 |
-| **Run-Länge**     | 15 Minuten bis zum Boss, danach Ergebnis-Screen                                                                                                                |
+| **Run-Länge**     | 20 Minuten bis zum Boss, danach Ergebnis-Screen; im Endlos-Modus weiter, bis der Spieler fällt                                                                 |
 | **Sprache**       | Deutsch (alle UI-Texte zentral in `strings.de.ts`; Namen und Beschreibungen von Waffen, Axiomen, Gegnern usw. stehen in den Datentabellen unter `src/content`) |
 | **Technik**       | TypeScript + PixiJS v8, prozedurale Grafik, Synth-Audio über WebAudio, keine Asset-Dateien                                                                     |
 | **Leistungsziel** | 60 FPS bei rund 1000 gleichzeitigen Gegnern (Stress-Test `?stress=1500`: 60 FPS mit 1200 Gegnern und 300 Kristallen)                                           |
@@ -29,7 +29,7 @@ Der Spieler steuert nur die Bewegung und das Timing eines einzigen Skills. Die T
 | 1   | **Geometrie ist alles**          | Jedes Element ist eine reine Form, und die Form verrät die Funktion. Das gibt dem Spiel eine sofort wiedererkennbare Identität und macht Regeln ohne Text lernbar: Spitzes ist schnell, Rundes kommt im Schwarm, Großes und Kantiges hält viel aus. |
 | 2   | **Deine Form ist dein Build**    | Das Spieler-Polygon zeigt den Build am Körper: Eckenzahl = Fortschritt, Glyphen an den Ecken = Waffen, leuchtende Kanten = Axiome. Fortschritt ist damit keine Zahl im Menü, sondern in jeder Sekunde sichtbar.                                     |
 | 3   | **Chaos bleibt lesbar**          | Feste Farbcodes, Gegnerkugeln immer auf der obersten Ebene und ein Telegraph vor jedem Angriff. Hunderte Gegner sollen sich überwältigend anfühlen, Treffer aber nie unfair.                                                                        |
-| 4   | **Kurze Runs, lange Motivation** | 15-Minuten-Runs passen in eine Pause. Meta-Progression, Beweise und Freischaltungen liefern den Grund für den nächsten Run.                                                                                                                         |
+| 4   | **Kurze Runs, lange Motivation** | Ein Run dauert 20 Minuten. Meta-Progression, Beweise, Freischaltungen und die Komplexitäts-Leiter liefern den Grund für den nächsten – für rund 150 Runs, bis das Reißbrett voll ist.                                                               |
 | 5   | **Web-first**                    | Keine Asset-Dateien: Grafik entsteht prozedural, Audio wird synthetisiert. Das hält den Download winzig; 60 FPS bei rund 1000 Gegnern sind das technische Mindestziel.                                                                              |
 
 ## 3. Kern-Mechanik „Polygon-Evolution“
@@ -105,68 +105,101 @@ In der Mitte des Polygons sitzt der **Kern-Punkt** mit **r = 8 px**. Nur er ist 
 | ------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | **Sekunden** | 1–10 s     | bewegen, ausweichen, Kristalle einsammeln, Signatur-Skill timen                                                                          | Überleben, XP, das befriedigende Zerspringen der Gegner in Kanten |
 | **Minute**   | 15–90 s    | Level-Up-Draft (3 Karten; anfangs etwa alle 30 s, in der zweiten Run-Hälfte etwa alle 15 s), Wellenwechsel, Events (Umzingelung, Gerade) | neue Waffen und Axiome, Stufenaufstiege, Theorem-Chancen          |
-| **Run**      | 15:00      | 3 Ecken erbeuten → Hexagon, Theoreme beweisen, Boss „Sierpinski“ besiegen                                                                | Form-Aufstiege, Theoreme, Splitter, neue Beweise                  |
+| **Run**      | 20:00      | 3 Ecken erbeuten → Hexagon, Theoreme beweisen, Boss „Sierpinski“ besiegen                                                                | Form-Aufstiege, Theoreme, Splitter, neue Beweise                  |
 | **Meta**     | viele Runs | Splitter im **Reißbrett** investieren (permanente Stats), **Beweise** (Achievements) erfüllen, Kompendium füllen                         | freigeschaltete Waffen, Axiome, Charaktere und Modi               |
 
 **Motivationskurve.** Der Run ist als Folge von Spannungsspitzen gebaut, nicht als gleichförmiger Anstieg:
 
 - **Anlauf (0–3 min):** Die XP-Kurve ist anfangs flach, die ersten Level-Ups kommen in schneller Folge. Der Spieler trifft viele kleine Entscheidungen und fühlt sich schnell stärker.
-- **Etappenziele im Drei-Minuten-Takt:** Die Elites um 3:00, 6:00 und 9:00 bringen jeweils einen Morph – einen sichtbaren und hörbaren Machtsprung mit neuen Slots. Dazwischen brechen die Events (4:30, 7:30) die Monotonie der Wellen und prüfen die Positionierung; um 10:30 schließt sich eine Keil-Umzingelung.
-- **Zweite Hälfte – Theoreme:** Sobald die ersten Waffen Lv 8 erreichen, werden Q.E.D.-Karten zur zweiten Art von Machtsprung. Der Build „schließt sich“.
-- **Finale:** Die Doppel-Elite um 12:00 belohnt vor der Schlussphase, Umzingelung 2 um 13:30 ist die letzte Prüfung, der Boss um 15:00 der Höhepunkt mit klarer Siegbedingung.
+- **Etappenziele im Takt von gut drei Minuten:** Die Elites um 3:00, 6:30 und 10:00 bringen jeweils einen Morph – einen sichtbaren und hörbaren Machtsprung mit neuen Slots. Dazwischen brechen die Events (4:30, 8:00) die Monotonie der Wellen und prüfen die Positionierung; um 11:30 schließt sich eine Keil-Umzingelung.
+- **Zweite Hälfte – Theoreme und Überstufen:** Sobald die ersten Waffen Lv 8 erreichen, werden Q.E.D.-Karten zur zweiten Art von Machtsprung. Danach steigen Waffen, Theoreme und Axiome als Überstufen weiter (7.4): Der Build wird nie „fertig“, jede fünfte Stufe bringt einen Meilenstein.
+- **Finale:** Truhen-Elites um 13:00, 16:00 und 18:30 belohnen vor der Schlussphase; Keil-Gerade (14:30), Umzingelung 2 (17:30) und die lange Gerade (19:30) sind die letzten Prüfungen, der Boss um 20:00 der Höhepunkt mit klarer Siegbedingung.
 - **Nach dem Run:** Der Ergebnis-Screen rechnet die Splitter ab und zeigt neue Beweise; der kurze Weg über den Titel ins Reißbrett erzeugt den „einen Run noch“-Sog.
 
 ## 5. Run-Ablauf
 
-### 5.1 Timeline (15:00)
+### 5.1 Timeline (20:00)
 
 Die Timeline ist eine Datentabelle (`content/waves`) und lässt sich ohne Codeänderung tunen.
 
-| Zeit  | Ereignis                                                                                                                                  | Neu im Gegner-Pool | Erwartete Form |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------- |
-| 0:00  | Start: Dreieck + Startwaffe                                                                                                               | Punkt              | Dreieck        |
-| 1:00  | –                                                                                                                                         | Keil               | Dreieck        |
-| 3:00  | **Elite 1** (Block) → Ecken-Würfel                                                                                                        | Block, Rhombus     | → Quadrat      |
-| 4:30  | Event **Umzingelung**: ein Ring aus 20 Blöcken (r 430 px) schließt sich                                                                   | –                  | Quadrat        |
-| 6:00  | **Elite 2** (Rhombus) → Ecken-Würfel                                                                                                      | Werfer, Stern      | → Pentagon     |
-| 7:30  | Event **Gerade**: eine Wand aus 40 Punkten fegt quer übers Feld                                                                           | –                  | Pentagon       |
-| 9:00  | **Elite 3** (Werfer) → Ecken-Würfel                                                                                                       | Wabe               | → Hexagon      |
-| 10:30 | Event **Keil-Umzingelung**: ein Ring aus 28 Keilen (r 450 px)                                                                             | –                  | Hexagon        |
-| 12:00 | **Doppel-Elite** (2 Waben) → je ein Truhen-Würfel (3 Upgrades + 15 Splitter)                                                              | –                  | Hexagon        |
-| 13:30 | Event **Umzingelung 2**: 36 Blöcke (r 460 px), dichter                                                                                    | –                  | Hexagon        |
-| 15:00 | **Boss „Sierpinski“**, normale Spawns laufen auf 30 % weiter                                                                              | –                  | Hexagon        |
-| Sieg  | Banner „BEWIESEN“, gut 3 s später der Ergebnis-Screen (im Endlos-Modus, per Beweis freigeschaltet, geht der Run stattdessen weiter; 10.5) | –                  | –              |
+| Zeit  | Ereignis                                                                                                                                                                               | Neu im Gegner-Pool | Erwartete Form |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------- |
+| 0:00  | Start: Dreieck + Startwaffe                                                                                                                                                            | Punkt              | Dreieck        |
+| 1:00  | –                                                                                                                                                                                      | Keil               | Dreieck        |
+| 3:00  | **Elite 1** (Block) → Ecken-Würfel                                                                                                                                                     | Block, Rhombus     | → Quadrat      |
+| 4:30  | Event **Umzingelung**: ein Ring aus 20 Blöcken (r 430 px) schließt sich                                                                                                                | –                  | Quadrat        |
+| 6:00  | –                                                                                                                                                                                      | Werfer, Stern      | Quadrat        |
+| 6:30  | **Elite 2** (Rhombus) → Ecken-Würfel                                                                                                                                                   | –                  | → Pentagon     |
+| 8:00  | Event **Gerade**: eine Wand aus 40 Punkten fegt quer übers Feld                                                                                                                        | –                  | Pentagon       |
+| 9:00  | –                                                                                                                                                                                      | Wabe               | Pentagon       |
+| 10:00 | **Elite 3** (Werfer) → Ecken-Würfel                                                                                                                                                    | –                  | → Hexagon      |
+| 11:30 | Event **Keil-Umzingelung**: ein Ring aus 28 Keilen (r 450 px)                                                                                                                          | –                  | Hexagon        |
+| 13:00 | **Truhen-Elite** (Wabe) → Truhen-Würfel (3 Upgrades + 15 Splitter)                                                                                                                     | –                  | Hexagon        |
+| 14:30 | Event **Keil-Gerade**: eine Wand aus 44 Keilen                                                                                                                                         | –                  | Hexagon        |
+| 16:00 | **Doppel-Elite** (2 Rhomben) → je ein Truhen-Würfel                                                                                                                                    | –                  | Hexagon        |
+| 17:30 | Event **Umzingelung 2**: 36 Blöcke (r 460 px), dichter                                                                                                                                 | –                  | Hexagon        |
+| 18:30 | **Doppel-Elite** (2 Waben) → je ein Truhen-Würfel                                                                                                                                      | –                  | Hexagon        |
+| 19:30 | Event **Lange Gerade**: 60 Punkte im Abstand von 20 px                                                                                                                                 | –                  | Hexagon        |
+| 20:00 | **Boss „Sierpinski“**, normale Spawns laufen auf 30 % weiter                                                                                                                           | –                  | Hexagon        |
+| Sieg  | Banner „BEWIESEN“, gut 3 s später der Ergebnis-Screen (im Endlos-Modus, per Beweis freigeschaltet, geht der Run stattdessen weiter, und alle 10 Minuten kehrt Sierpinski zurück; 10.5) | –                  | –              |
 
 ### 5.2 Director-Prinzip
 
 Der **Director** entscheidet, was wann wo erscheint. Er arbeitet mit vier Werkzeugen:
 
-- **Spawn-Rate und Obergrenze:** Die Wellentabelle teilt den Run in Segmente. Innerhalb eines Segments steigt die Spawn-Rate linear (Gegner pro Sekunde), und eine Obergrenze lebender Gegner (`maxAlive`) deckelt die Dichte. Auch die Punkte, die Waben ausbrüten, zählen gegen diese Obergrenze; ist sie erreicht, schlüpft nichts, sonst würden liegen gelassene Waben das Feld fluten. Ein Punktebudget pro Archetyp gibt es nicht; wie bedrohlich eine Welle ist, steuern Rate, Obergrenze und die Mischung im Pool. Die Komplexität hebt die Rate zusätzlich an, der Endlos-Modus lässt Rate und Obergrenze nach 15:00 weiter wachsen (10.5).
+- **Spawn-Rate und Obergrenze:** Die Wellentabelle teilt den Run in Segmente. Innerhalb eines Segments steigt die Spawn-Rate linear (Gegner pro Sekunde), und eine Obergrenze lebender Gegner (`maxAlive`) deckelt die Dichte. Auch die Punkte, die Waben ausbrüten, zählen gegen diese Obergrenze; ist sie erreicht, schlüpft nichts, sonst würden liegen gelassene Waben das Feld fluten. Ein Punktebudget pro Archetyp gibt es nicht; wie bedrohlich eine Welle ist, steuern Rate, Obergrenze und die Mischung im Pool. Die Komplexität hebt die Rate zusätzlich an (bis K 10), der Mutator „Gedränge“ die Obergrenze, und der Endlos-Modus lässt beide nach 20:00 weiter wachsen (10.5).
 - **Segment-Pools:** Jedes Segment legt fest, welche Archetypen mit welchem Gewicht gezogen werden. Neue Archetypen kommen zu den Zeitpunkten der Timeline hinzu, ältere bleiben im Pool.
 
 | Segment     | Spawn-Rate (Gegner/s) | Max. lebend | Pool (Gewichte)                                                        |
 | ----------- | --------------------- | ----------- | ---------------------------------------------------------------------- |
 | 0:00–1:00   | 1,1 → 2,4             | 84          | Punkt                                                                  |
-| 1:00–3:00   | 2,4 → 4,4             | 168         | Punkt 3, Keil 1                                                        |
-| 3:00–6:00   | 4,4 → 6,0             | 264         | Punkt 3, Keil 2, Block 1, Rhombus 1                                    |
-| 6:00–9:00   | 6,0 → 8,2             | 384         | Punkt 3, Keil 2, Block 1,5, Rhombus 1,5, Werfer 1, Stern 1             |
-| 9:00–12:00  | 8,2 → 10,5            | 504         | Punkt 3, Keil 2, Block 2, Rhombus 1,5, Werfer 1,2, Stern 1,2, Wabe 0,5 |
-| 12:00–15:00 | 10,5 → 13,2           | 624         | Punkt 2, Keil 2, Block 2, Rhombus 2, Werfer 1,5, Stern 1,5, Wabe 0,8   |
+| 1:00–3:00   | 2,4 → 4,2             | 160         | Punkt 3, Keil 1                                                        |
+| 3:00–6:00   | 4,2 → 5,6             | 240         | Punkt 3, Keil 2, Block 1, Rhombus 1                                    |
+| 6:00–9:00   | 5,6 → 7,2             | 330         | Punkt 3, Keil 2, Block 1,5, Rhombus 1,5, Werfer 1, Stern 1             |
+| 9:00–12:00  | 7,2 → 8,8             | 420         | Punkt 3, Keil 2, Block 2, Rhombus 1,5, Werfer 1,2, Stern 1,2, Wabe 0,5 |
+| 12:00–15:00 | 8,8 → 10,5            | 504         | Punkt 2, Keil 2, Block 2, Rhombus 2, Werfer 1,5, Stern 1,5, Wabe 0,8   |
+| 15:00–17:30 | 10,5 → 12,2           | 580         | Punkt 1,5, Keil 2, Block 2, Rhombus 2, Werfer 1,5, Stern 1,5, Wabe 1   |
+| 17:30–20:00 | 12,2 → 14,0           | 660         | Punkt 1, Keil 2, Block 2, Rhombus 2,5, Werfer 2, Stern 2, Wabe 1,2     |
 
 - **Spawn-Ort und Leine:** Gegner erscheinen 70 px außerhalb des sichtbaren Rechtecks, in zufälliger Richtung vom Spieler aus. Wer weiter als die Bilddiagonale + 420 px entfernt ist, wird an den Bildrand vor den Spieler versetzt (Blickrichtung ±1 rad); so bleibt die Dichte erhalten, und Weglaufen ist keine Strategie. Die Punkte der Geraden werden stattdessen entfernt, Boss-Teile erst ab dem 1,5-fachen Abstand zurückgeholt.
 - **Skript-Ereignisse** aus der Wellentabelle, zusätzlich zu den normalen Spawns:
-  - **Umzingelung** (4:30): Ein geschlossener Ring aus 20 Blöcken erscheint im Abstand von 430 px um den Spieler und zieht sich zusammen, weil alle Blöcke auf ihn zulaufen. Lösung: eine Lücke freischießen oder mit dem Signatur-Skill durchbrechen. Die **Keil-Umzingelung** (10:30) schließt mit 28 Keilen (r 450 px) einen schnelleren Ring, **Umzingelung 2** (13:30) ist mit 36 Blöcken (r 460 px) dichter. Banner „UMZINGELUNG“.
-  - **Gerade** (7:30): Eine Wand aus 40 Punkten (Abstand 22 px) tritt an einer zufälligen Seite ein und marschiert als gerade Linie quer über das Feld. Lösung: eine Bresche schießen oder im richtigen Moment hindurch-dashen. Banner „DIE GERADE“.
-  - **Elites** zu festen Zeiten mit festem Typ und eigenem HP-Faktor (8.5): Block (3:00), Rhombus (6:00), Werfer (9:00) und zwei Waben (12:00). Sie erscheinen am Bildrand, begleitet vom Banner „ELITE – Besiege sie – sie trägt einen Würfel“. Ein Pfeil am Bildschirmrand zeigt liegen gebliebene Würfel an; Elites selbst bekommen keinen Pfeil.
-  - **Boss** um 15:00: Die normalen Spawns laufen auf 30 % weiter, damit noch XP fließt, der Fokus aber beim Boss liegt. Der Run endet erst mit dem Sieg über alle Boss-Kopien oder mit dem Tod des Spielers (im Endlos-Modus nur mit dem Tod, 10.5).
+  - **Umzingelung** (4:30): Ein geschlossener Ring aus 20 Blöcken erscheint im Abstand von 430 px um den Spieler und zieht sich zusammen, weil alle Blöcke auf ihn zulaufen. Lösung: eine Lücke freischießen oder mit dem Signatur-Skill durchbrechen. Die **Keil-Umzingelung** (11:30) schließt mit 28 Keilen (r 450 px) einen schnelleren Ring, **Umzingelung 2** (17:30) ist mit 36 Blöcken (r 460 px) dichter. Banner „UMZINGELUNG“.
+  - **Gerade** (8:00): Eine Wand aus 40 Punkten (Abstand 22 px) tritt an einer zufälligen Seite ein und marschiert als gerade Linie quer über das Feld. Lösung: eine Bresche schießen oder im richtigen Moment hindurch-dashen. Um 14:30 marschiert eine Wand aus 44 Keilen, um 19:30 eine aus 60 Punkten (Abstand 20 px). Banner „DIE GERADE“.
+  - **Elites** zu festen Zeiten mit festem Typ und eigenem HP-Faktor (8.5): Block (3:00), Rhombus (6:30), Werfer (10:00), Wabe (13:00), zwei Rhomben (16:00) und zwei Waben (18:30). Sie erscheinen am Bildrand, begleitet vom Banner „ELITE – Besiege sie – sie trägt einen Würfel“. Ein Pfeil am Bildschirmrand zeigt liegen gebliebene Würfel an; Elites selbst bekommen keinen Pfeil.
+  - **Boss** um 20:00: Die normalen Spawns laufen auf 30 % weiter, damit noch XP fließt, der Fokus aber beim Boss liegt. Der Run endet erst mit dem Sieg über alle Boss-Kopien oder mit dem Tod des Spielers (im Endlos-Modus nur mit dem Tod, 10.5).
+  - Ab Komplexität 7 bringen Mutatoren doppelt so viele Elites, ab K 8 werden Ringe und Geraden um die Hälfte größer (10.5).
 
 ### 5.3 Balance-Ziel
 
-Die headless Balance-Simulation (`npm run sim`, also `node scripts/sim.ts [--seeds 10] [--first 1] [--minutes 15] [--char delta] [--complexity 0] [--meta] [--jobs 4] [--react 12]`) lässt einen Bot-Spieler über mehrere Seeds laufen; alle Waffen und Axiome sind dabei freigeschaltet. Sie gibt pro Minute – gemittelt über die noch lebenden Seeds – die Zahl der überlebenden Runs, Level, HP, Gegnerzahl, Kills, erreichte Form, DPS und die Rechenzeit pro Tick aus, dazu eine Zeile pro Run (mit dem Gegnertyp, der den tödlichen Treffer gesetzt hat) und eine Zusammenfassung: Niederlagen mit Median-Todeszeit, Tode vor Minute 8 und zwischen 8 und 12, Boss erreicht und besiegt, erlittener Schaden nach Quelle und tödliche Treffer. `--meta` setzt alle Reißbrett-Upgrades auf ihren Maximalrang (Obergrenze der Meta-Stärke), `--first` wählt den ersten Seed, `--jobs` verteilt die Seeds auf parallele Prozesse (mit demselben Ergebnis wie seriell).
+Die headless Balance-Simulation (`npm run sim`, also `node scripts/sim.ts [--seeds 10] [--first 1] [--minutes 23] [--char delta] [--complexity 0] [--meta [0-3]] [--endless] [--jobs 4] [--react 12]`) lässt einen Bot-Spieler über mehrere Seeds laufen; alle Waffen und Axiome sind dabei freigeschaltet. Sie gibt pro Minute – gemittelt über die noch lebenden Seeds – die Zahl der überlebenden Runs, Level, HP, Gegnerzahl, Kills, erreichte Form, DPS und die Rechenzeit pro Tick aus, dazu eine Zeile pro Run (mit dem Gegnertyp, der den tödlichen Treffer gesetzt hat, der Dauer jedes Boss-Kampfs und bei einem noch offenen Boss-Kampf dem HP-Rest, etwa „37 % left“) und eine Zusammenfassung: Niederlagen mit Median-Todeszeit, Tode vor Minute 10 und zwischen 10 und 14, Boss erreicht und besiegt, Splitter-Belohnung, höchste Waffenstufe, Spitzenwerte der Objekt-Pools, erlittener Schaden nach Quelle und tödliche Treffer. `--meta n` setzt alle Reißbrett-Einträge auf ihren Maximalrang mit n Erweiterungen (Obergrenze der Meta-Stärke je Stufe, `--meta` allein = 0), `--endless` spielt den Endlos-Modus, `--minutes` ist standardmäßig die Run-Länge plus 3 Minuten für den Boss-Kampf, `--first` wählt den ersten Seed, `--jobs` verteilt die Seeds auf parallele Prozesse (mit demselben Ergebnis wie seriell).
 
-Der **Bot** bewertet 16 Richtungen: Gefahr durch Gegner, gezündete Sterne und Kugeln entlang einer kurzen Vorschau, Zug zum Ziel, etwas Schwung. Ziele in dieser Reihenfolge: ein Würfel, eine Heilung (unter 70 % HP), bei mehr als 50 % HP die nächste Würfel-Elite oder das nächste Boss-Teil, sonst Kristalle. Auf dem Weg zu Würfel oder Elite beachtet er nur Gegner in unmittelbarer Nähe oder mit laufendem Telegraph, und liegt ein Würfel in Reichweite des Signatur-Skills, setzt er ihn dafür ein – so, wie ein Mensch es täte. `--react` ist seine Reaktionszeit: Er plant nur alle n Ticks neu (Standard 12 Ticks = 0,2 s; 1 wäre übermenschlich). Im Draft nimmt er Theoreme, dann Waffen-Level, neue Waffen, Axiome.
+Der **Bot** bewertet 16 Richtungen: Gefahr durch Gegner, gezündete Sterne und Kugeln entlang einer kurzen Vorschau, Zug zum Ziel, etwas Schwung. Ziele in dieser Reihenfolge: ein Würfel, eine Heilung (unter 70 % HP), bei mehr als 50 % HP die nächste Würfel-Elite oder das nächste Boss-Teil, sonst Kristalle. Auf dem Weg zu Würfel oder Elite beachtet er nur Gegner in unmittelbarer Nähe oder mit laufendem Telegraph, und liegt ein Würfel in Reichweite des Signatur-Skills, setzt er ihn dafür ein – so, wie ein Mensch es täte. `--react` ist seine Reaktionszeit: Er plant nur alle n Ticks neu (Standard 12 Ticks = 0,2 s; 1 wäre übermenschlich). Im Draft nimmt er Theoreme, dann Kern-Stufen von Waffen, neue Waffen, Kern-Stufen von Axiomen, neue Axiome und erst danach Überstufen (Waffen vor Axiomen).
 
-Zielbild: **Ein Bot ohne Meta-Upgrades stirbt meist zwischen Minute 8 und 12; ein guter Build schafft den Boss.** Stand (64 Seeds, 20 Minuten): Delta ohne Meta verliert 59 von 64 Runs, Median 9:53; 29 davon sterben zwischen Minute 8 und 12, 14 früher; 7 erreichen den Boss, 5 besiegen ihn, in 10 bis 80 s. Nova (−20 % HP) verliert 55, Median 10:01, davon 18 vor Minute 8. Mit voller Meta überleben alle 64 Runs, 63 besiegen den Boss. Den meisten Schaden richten Rhombus, Block und Keil an. Die wichtigsten Stellschrauben waren das Gegnertempo (8.7) – vorher lief der Spieler allem davon – und die exponentielle HP-Kurve, die mit dem stark wachsenden Schaden später Builds Schritt hält.
+**Zielbild.** Ohne Meta stirbt ein Bot meist zwischen Minute 10 und 14; ein guter Build schafft den Boss. Jede Reißbrett-Stufe trägt die Komplexitäts-Leiter ein Stück weiter hinauf, und die Tore der Langzeit-Progression liegen dort, wo die jeweilige Stufe knapp reicht: K 5 („Kritischer Punkt“) für T0, K 10 („Konvergenz“, öffnet eine Erweiterung) für T1, K 15 („Komplexität XV“) für T2 und K 20 („Formvollendet“) als Meisterstück für T3. Im Endlos-Modus beendet die Schadens-Wand jeden Run; „Grenzwert“ (30:00) und „Unendlichkeit“ (40:00) liegen dort, wo T0 bzw. T2 sie mit etwas Glück erreichen.
+
+Stand (32 Seeds je Zelle, Delta, 26 Minuten, im Endlos-Modus 70; T0–T3 = Reißbrett voll ohne bzw. mit Erweiterung I–III):
+
+| Zelle                      | Ziel                              | Stand                                                        |
+| -------------------------- | --------------------------------- | ------------------------------------------------------------ |
+| ohne Meta, K 0             | Median-Tod 10–14 min, Boss selten | Median-Tod 11:55, 3 von 32 besiegen den Boss                 |
+| T0, K 0                    | Boss sicher                       | 100 %, Boss-Kampf im Median 25 s                             |
+| T0, K 5 (Kritischer Punkt) | schaffbar, nicht sicher           | 75 %, Kampf 44 s                                             |
+| T0, K 10                   | kaum                              | 6 %                                                          |
+| T1, K 10 (Konvergenz)      | schaffbar, nicht sicher           | 81 %, Kampf 58 s                                             |
+| T1, K 15                   | chancenlos                        | 0 % (Median-Tod 14:28)                                       |
+| T2, K 15 (Komplexität XV)  | etwa jeder dritte Versuch         | 38 %, Kampf 173 s                                            |
+| T2, K 20                   | chancenlos                        | 0 % (Median-Tod 13:50)                                       |
+| T3, K 15                   | sicher                            | 94 %, Kampf 103 s                                            |
+| T3, K 20 (Formvollendet)   | höchstens 10 %, aber möglich      | 6 % (Median-Tod 18:42)                                       |
+| Endlos T0 (Grenzwert)      | 30:00 oft                         | 72 % erreichen 30:00, Median 34:30                           |
+| Endlos T2 (Unendlichkeit)  | 40:00 etwa jeder zweite Run       | 44 % erreichen 40:00, Median 39:34                           |
+| Endlos T3                  | Median 40–50 min                  | Median 45:34, im Schnitt fast 3 Boss-Siege, Waffen bis Lv 57 |
+
+Die Spitzenwerte bleiben unter den Pool-Deckeln (bis 1143 Gegner bei 1200, Gegnerkugeln am Deckel von 800), die Simulation braucht höchstens 1,4 ms pro Tick. Den meisten Schaden richten Rhombus, Block und Keil an; mit steigender Komplexität wachsen Blöcke und Gegnerkugeln zur Hauptgefahr, und in langen Endlos-Runs kommt der größte Anteil von den Kugeln.
+
+**Pacing.** Ein Pacing-Modell rechnet aus diesen Zellen, wie viele Runs ein Spieler vom frischen Spielstand bis zum vollen Reißbrett braucht: Er gibt jeden Splitter sofort aus, steigt eine Komplexitätsstufe höher, sobald er dort mit mindestens 30 % gewinnt, farmt sonst die ertragreichste Stufe und spielt Endlos-Runs, wenn ihm für die nächste Erweiterung ein Zeit-Beweis fehlt. Ergebnis: T0 voll nach rund 48 Runs, Erweiterung I nach 72, II nach 100 und III nach rund 140 Runs (gut 47 Stunden); je nach Risikobereitschaft 130–150 Runs. Formvollendet (K 20) bleibt danach die offene Aufgabe.
+
+**Stellschrauben.** Die wichtigsten waren die exponentielle HP-Kurve der Komplexität (×1,16 je Stufe; mit den alten +25 % linear gewann T3 selbst auf K 20 vier von fünf Runs, mit ×1,18 war K 15 für T2 unerreichbar), die nur lineare Boss-Skalierung (exponentiell wurden späte Boss-Kämpfe zu minutenlangem Abtragen), die Schadens-Wand im Endlos-Modus (ohne sie liefen Runs mit voller Meta fast eine Stunde) und für das Pacing der Splitter-Bonus der Komplexität (+10 % je Stufe) zusammen mit `META.rankGrowth` (1,08). Im Run selbst wirken vor allem das Gegnertempo (8.7) – mit zu langsamen Gegnern läuft der Spieler allem davon – und die exponentielle Zeit-HP-Kurve, die mit dem stark wachsenden Schaden später Builds Schritt hält.
 
 ## 6. Spieler-Charaktere
 
@@ -219,7 +252,7 @@ Die Zahlen in den folgenden Tabellen entsprechen den Datentabellen `content/weap
 
 ### 7.1 Waffen (an Ecken)
 
-- Jede Waffe belegt eine Ecke und steigt bis **Lv 8** auf. Die genauen Stufentabellen liegen in `content/weapons`; die Spalte „Level-Fokus“ zeigt, was die Stufen verbessern.
+- Jede Waffe belegt eine Ecke. Lv 1–8 sind handgeschriebene **Kern-Stufen**; die genauen Stufentabellen liegen in `content/weapons`, die Spalte „Level-Fokus“ zeigt, was sie verbessern. Danach steigt die Waffe als **Überstufe** bis Lv 99 weiter (7.4).
 - Das MVP hat **6 Waffen**, 4 davon ab Start im Pool; 🔒 markiert Waffen, die per Beweis freigeschaltet werden (10.3).
 - „Blickrichtung“ meint die letzte Bewegungsrichtung des Spielers, da sich das Polygon selbst ständig dreht.
 
@@ -234,28 +267,28 @@ Die Zahlen in den folgenden Tabellen entsprechen den Datentabellen `content/weap
 
 ### 7.2 Axiome (an Kanten)
 
-- Jedes Axiom belegt eine Kante und steigt bis **Lv 5** auf; einzige Ausnahme ist **Symmetrie mit max. Lv 2**.
+- Jedes Axiom belegt eine Kante. Die Kern-Stufen reichen bis **Lv 5**, bei **Symmetrie bis Lv 2**; danach steigen alle Axiome außer Symmetrie mit kleinerem Zuwachs als Überstufe bis Lv 99 weiter (Spalte „je Überstufe“, 7.4).
 - Das MVP hat **8 Axiome**; 🔒 Symmetrie und Integral werden per Beweis freigeschaltet (10.3).
 - Prozentboni auf denselben Wert addieren sich, bevor sie angewendet werden (z. B. ergeben Frequenz Lv 5 und zwei Reißbrett-Ränge Frequenz −40 % − 5 % = −45 %). Der Cooldown sinkt dabei nie unter 40 % des Grundwerts.
 - Kantenfarben sind überwiegend kühl (Blau, Grün, Violett, Weiß) und heben sich so von den warmen Gegnerfarben ab; Potenz (Hellrot) und Volumen (Hellgelb) sind als helle Pastelltöne die Ausnahme. Zusätzlich trägt jede belegte Kante in der Mitte ein kleines, aufrecht stehendes **Symbol**, damit Axiome auch ohne Farbwahrnehmung lesbar sind. Draft-Karten, Pause, Kompendium, Mini-Build und die gleichnamigen Reißbrett-Upgrades zeigen dasselbe Symbol.
 
-| Axiom              | Farbe                 | Symbol                               | Wirkung pro Level                                                                | Max. Lv | Summe bei Max.       | Theorem-Partner       | Verfügbar        |
-| ------------------ | --------------------- | ------------------------------------ | -------------------------------------------------------------------------------- | ------- | -------------------- | --------------------- | ---------------- |
-| **Potenz**         | Hellrot `#FF8A8A`     | Zirkumflex ^ (Potenz-Operator)       | +10 % Schaden                                                                    | 5       | +50 %                | Fraktal → Mandelbrot  | Start            |
-| **Frequenz**       | Hellblau `#7AD7FF`    | Uhr                                  | −8 % Cooldown                                                                    | 5       | −40 %                | Welle → Fourier-Reihe | Start            |
-| **Skalierung**     | Lime `#B8FF7A`        | zwei verschachtelte Quadrate         | +10 % Fläche (Radien, Größen)                                                    | 5       | +50 %                | Strahl → Prisma       | Start            |
-| **Symmetrie** 🔒   | Violett `#E07AFF`     | Spiegelachse zwischen zwei Dreiecken | +1 Anzahl: Pfeil, Kreis, Welle, Strahl oder Fraktal (wirkt nicht auf den Zirkel) | 2       | +2                   | Spitze → Sternpolygon | „Quadratur“      |
-| **Volumen**        | Hellgelb `#FFE07A`    | Kugel mit Äquator                    | +20 Max-HP (der Zuwachs heilt sofort)                                            | 5       | +100                 | Zirkel → Sphäre       | Start            |
-| **Integral** 🔒    | Mint `#7AFFB8`        | ∫                                    | +0,25 HP/s Regeneration                                                          | 5       | +1,25 HP/s           | –                     | „Tausend Punkte“ |
-| **Beschleunigung** | Blauviolett `#8AA2FF` | »                                    | +8 % Lauftempo                                                                   | 5       | +40 %                | –                     | Start            |
-| **Gravitation**    | Weiß `#F2F2FF`        | vier Pfeile zur Mitte                | +30 % Sammelradius                                                               | 5       | +150 % (60 → 150 px) | Kreisbahn → Epizykel  | Start            |
+| Axiom              | Farbe                 | Symbol                               | Wirkung pro Level                                                                | Kern-Lv | Summe bei Kern-Lv    | je Überstufe | Theorem-Partner       | Verfügbar        |
+| ------------------ | --------------------- | ------------------------------------ | -------------------------------------------------------------------------------- | ------- | -------------------- | ------------ | --------------------- | ---------------- |
+| **Potenz**         | Hellrot `#FF8A8A`     | Zirkumflex ^ (Potenz-Operator)       | +10 % Schaden                                                                    | 5       | +50 %                | +2 %         | Fraktal → Mandelbrot  | Start            |
+| **Frequenz**       | Hellblau `#7AD7FF`    | Uhr                                  | −8 % Cooldown                                                                    | 5       | −40 %                | −1 %         | Welle → Fourier-Reihe | Start            |
+| **Skalierung**     | Lime `#B8FF7A`        | zwei verschachtelte Quadrate         | +10 % Fläche (Radien, Größen)                                                    | 5       | +50 %                | +2 %         | Strahl → Prisma       | Start            |
+| **Symmetrie** 🔒   | Violett `#E07AFF`     | Spiegelachse zwischen zwei Dreiecken | +1 Anzahl: Pfeil, Kreis, Welle, Strahl oder Fraktal (wirkt nicht auf den Zirkel) | 2       | +2                   | –            | Spitze → Sternpolygon | „Quadratur“      |
+| **Volumen**        | Hellgelb `#FFE07A`    | Kugel mit Äquator                    | +20 Max-HP (der Zuwachs heilt sofort)                                            | 5       | +100                 | +5 Max-HP    | Zirkel → Sphäre       | Start            |
+| **Integral** 🔒    | Mint `#7AFFB8`        | ∫                                    | +0,25 HP/s Regeneration                                                          | 5       | +1,25 HP/s           | +0,05 HP/s   | –                     | „Tausend Punkte“ |
+| **Beschleunigung** | Blauviolett `#8AA2FF` | »                                    | +8 % Lauftempo                                                                   | 5       | +40 %                | +1 %         | –                     | Start            |
+| **Gravitation**    | Weiß `#F2F2FF`        | vier Pfeile zur Mitte                | +30 % Sammelradius                                                               | 5       | +150 % (60 → 150 px) | +5 %         | Kreisbahn → Epizykel  | Start            |
 
 ### 7.3 Theoreme (Evolutionen)
 
-**Regel:** Erreicht eine Waffe **Lv 8** und besitzt der Spieler das **passende Axiom** (auf beliebigem Level), bietet der nächste Draft garantiert eine goldene **„Q.E.D.“-Karte** an. Wer sie wählt, ersetzt die Waffe **im selben Eck-Slot** durch ihr Theorem. Das Theorem übernimmt die Lv-8-Werte der Waffe und legt seine eigenen Boni darauf; die Glyphe bekommt eine eigene Farbe und einen goldenen Ring, das Axiom bleibt erhalten. Das Banner „Q.E.D.“ und ein goldener Ring feiern den Beweis.
+**Regel:** Erreicht eine Waffe **Lv 8** und besitzt der Spieler das **passende Axiom** (auf beliebigem Level), bietet der nächste Draft garantiert eine goldene **„Q.E.D.“-Karte** an. Wer sie wählt, ersetzt die Waffe **im selben Eck-Slot** durch ihr Theorem. Das Theorem übernimmt Level und Werte der Waffe (also mindestens Lv 8, samt erreichter Überstufen) und legt seine eigenen Boni darauf; danach steigt es mit dem Meilenstein-Zyklus seiner Grundwaffe weiter (7.4); die Glyphe bekommt eine eigene Farbe und einen goldenen Ring, das Axiom bleibt erhalten. Das Banner „Q.E.D.“ und ein goldener Ring feiern den Beweis.
 
 ```
-Waffe (Lv 8)  +  passendes Axiom (beliebiges Lv)  →  goldene Q.E.D.-Karte  →  Theorem im selben Eck-Slot
+Waffe (ab Lv 8)  +  passendes Axiom (beliebiges Lv)  →  goldene Q.E.D.-Karte  →  Theorem im selben Eck-Slot, gleiches Level
 ```
 
 - Die Q.E.D.-Karte belegt einen der normalen Kartenplätze; pro Draft erscheint höchstens eine (sind mehrere Theoreme möglich, entscheidet der Zufall). Wer sie nicht nimmt, bekommt sie im nächsten Draft erneut angeboten. Wer sie radiert, sperrt dieses Theorem für den Rest des Runs.
@@ -273,16 +306,35 @@ Waffe (Lv 8)  +  passendes Axiom (beliebiges Lv)  →  goldene Q.E.D.-Karte  →
 
 Theoreme sind der „Aha“-Moment des Spiels: Der Name ist echte Mathematik, und der Effekt macht sie sichtbar – die Fourier-Reihe baut aus Sinuswellen eine Rechteckwelle, der Epizykel zeichnet Spirographen. Das Sternpolygon ist bewusst mit der Kern-Mechanik verzahnt: Je mehr Ecken der Spieler hat, desto dichter wird seine Salve.
 
-### 7.4 Level-Up-Draft
+### 7.4 Überstufen (Lv 9–99)
+
+Nach den Kern-Stufen ist ein Build nicht fertig: Waffen, Theoreme und Axiome steigen als **Überstufen** bis **Lv 99** weiter. Das Ende ist bewusst unerreichbar – alles auf Lv 99 bräuchte rund 1100 Level-Ups, ein Normal-Run bringt etwa 75, ein langer Endlos-Run gut 140. Überstufen-Karten tragen die Kopfzeile „Überstufe · Ecke“ bzw. „Überstufe · Kante“ und zeigen wie gewohnt den Stufenwechsel („Lv 12 → 13“); Pause-Screen und Kompendium nennen das Level, MAX erscheint erst am echten Ende oder an einem Cap.
+
+- **Schaden:** Jede Überstufe einer Waffe oder eines Theorems bringt **+10 % des Kern-Schadens** (additiv: Lv 18 = doppelter Lv-8-Schaden, Lv 99 ≈ ×10).
+- **Meilensteine:** Jede **fünfte Stufe** (Lv 10, 15, 20 …) bringt zusätzlich den nächsten Schritt aus dem Zyklus der Waffe; Theoreme nutzen den Zyklus ihrer Grundwaffe. Meilensteine heben die Anzahl höchstens um 2 über die Kern-Stufe, senken die Abklingzeit höchstens auf die Hälfte des Kern-Werts und verlangsamen höchstens um 60 %.
+
+| Waffe     | Meilenstein-Zyklus (Lv 10, 15, 20, …)                       |
+| --------- | ----------------------------------------------------------- |
+| Spitze    | +1 Durchschlag · −5 % Abklingzeit · +10 % Geschosstempo     |
+| Kreisbahn | +10 % Bahnradius · +10 % Umlauftempo · −10 % Tick-Intervall |
+| Welle     | +10 % Amplitude · −5 % Abklingzeit · +10 % Größe            |
+| Zirkel    | +8 % Radius · −8 % Tick-Intervall · +5 % Verlangsamung      |
+| Strahl    | +10 % Länge · +0,2 s Dauer · +15 % Breite                   |
+| Fraktal   | −5 % Abklingzeit · +10 % Größe · +1 Durchschlag             |
+
+- **Axiome:** kleinerer Zuwachs je Überstufe (Tabelle in 7.2); Symmetrie hat keine, sonst wüchse die Anzahl grenzenlos.
+- **Harte Caps** nach Axiomen und Reißbrett, damit kein Build das Spiel bricht: Anzahl höchstens +4, Fläche, Wirkdauer und Projektiltempo höchstens ×2,5, Lauftempo ×1,8, Sammelradius ×4, Krit-Chance 75 %; die Abklingzeit sinkt nie unter 40 %. Ein Axiom, dessen nächste Stufe nur noch gedeckelte Werte beträfe, gilt als MAX und wird nicht mehr angeboten.
+
+### 7.5 Level-Up-Draft
 
 **Regeln**
 
 1. Jedes Level-Up öffnet einen Draft mit **3 Karten** (4 mit dem Reißbrett-Upgrade „Vierte Karte“).
 2. Während des Drafts ist die Simulation pausiert. Mehrere gleichzeitige Level-Ups werden nacheinander gedraftet; aufgehobene Würfel werden vorher geöffnet.
 3. Eine **neue Waffe** wird nur angeboten, wenn eine Ecke frei ist; ein **neues Axiom** nur, wenn eine Kante frei ist. Gesperrte, radierte und bereits vorhandene Items fallen heraus, ebenso eine Waffe, deren Theorem der Spieler schon besitzt.
-4. Jede mögliche Karte hat ein Gewicht: **Waffen-Upgrade 1, neue Waffe 0,9, Axiom-Upgrade 0,8, neues Axiom 0,7**. Gezogen wird gewichtet ohne Zurücklegen; Upgrades sind damit leicht bevorzugt, Waffen etwas häufiger als Axiome.
+4. Jede mögliche Karte hat ein Gewicht: **Waffen-Upgrade 1, neue Waffe 0,9, Axiom-Upgrade 0,8, neues Axiom 0,7**; Überstufen-Karten zählen nur **60 %** ihres Gewichts, damit Kern-Stufen und neue Items vorgehen. Gezogen wird gewichtet ohne Zurücklegen; Upgrades sind damit leicht bevorzugt, Waffen etwas häufiger als Axiome.
 5. Ist ein Theorem möglich, enthält der Draft garantiert eine **Q.E.D.-Karte** (Abschnitt 7.3).
-6. Reichen die möglichen Karten nicht, füllen die **Fallback-Karten „+30 HP“** (heilt 30) und **„+15 Splitter“** die freien Plätze auf, zuerst die Heilung.
+6. Reichen die möglichen Karten nicht (dank Überstufen erst, wenn alles bei Lv 99 oder am Cap steht), füllen die **Fallback-Karten „+30 HP“** (heilt 30) und **„+15 Splitter“** die freien Plätze auf, zuerst die Heilung.
 
 Der Draft trägt den Titel „Level N“ mit der Unterzeile „Wähle ein Lemma“. Jede Karte zeigt Glyphe, Name, Stufenwechsel (z. B. „Lv 3 → 4“) und den Effekt in einem Satz. Kopfzeile und Rahmen verraten den Typ („Waffe · Ecke“, „Axiom · Kante“ oder das goldene „Theorem“); neue Items tragen die Marke „NEU“, die Q.E.D.-Karte nennt ihr Rezept („Beweis: Spitze (max) + Symmetrie“).
 
@@ -342,7 +394,7 @@ Vor **jedem** Angriff blinkt der Gegner während des ganzen Vorlaufs weiß auf (
 
 ### 8.5 Elites
 
-Elites sind **2,5× so groß**, tragen **mindestens 3 Schalen** und einen **weißen Rand** (eine zusätzliche Kontur außen herum) und haben **+15 % Tempo** und **mindestens 60 % Knockback-Resistenz**; dafür geben sie 20-fache XP. Ihre HP sind ein Vielfaches eines normalen Gegners ihres Typs zur selben Zeit; den Faktor legt die Wellentabelle je Elite fest: **2,5×** für den Block um 3:00 (der erste Würfel soll schnell fallen), **8×** für den Rhombus um 6:00, **4×** für den Werfer um 9:00 (er flieht, das Einholen ist schon die Prüfung) und **6×** für die Waben um 12:00. Welchen Würfel eine Elite trägt, legt die Wellentabelle fest: Die Elites um 3:00, 6:00 und 9:00 droppen je einen **Ecken-Würfel**, die beiden Waben der Doppel-Elite um 12:00 je einen **Truhen-Würfel** (3 Upgrades + 15 Splitter). Jede Elite bringt außerdem 10 Splitter. Ihr Tod wird mit einem weißen Ring und Screenshake gefeiert.
+Elites sind **2,5× so groß**, tragen **mindestens 3 Schalen** und einen **weißen Rand** (eine zusätzliche Kontur außen herum) und haben **+15 % Tempo** und **mindestens 60 % Knockback-Resistenz**; dafür geben sie 20-fache XP. Ihre HP sind ein Vielfaches eines normalen Gegners ihres Typs zur selben Zeit; den Faktor legt die Wellentabelle je Elite fest: **2,5×** für den Block um 3:00 (der erste Würfel soll schnell fallen), **8×** für die Rhomben (6:30 und 16:00), **4×** für den Werfer um 10:00 (er flieht, das Einholen ist schon die Prüfung) und **6×** für die Waben (13:00 und 18:30) und den Werfer der Endlos-Runde; ab Komplexität 10 kommen +50 % dazu (Mutator „Schwere Elite“). Welchen Würfel eine Elite trägt, legt die Wellentabelle fest: Die Elites um 3:00, 6:30 und 10:00 droppen je einen **Ecken-Würfel**, alle späteren je einen **Truhen-Würfel** (3 Upgrades + 15 Splitter). Jede Elite bringt außerdem 10 Splitter. Ihr Tod wird mit einem weißen Ring und Screenshake gefeiert.
 
 ### 8.6 Gegnerkugeln
 
@@ -350,10 +402,11 @@ Gegnerkugeln sind **hohle Magenta-Ringe mit weißem Kern** (r 6 px) und liegen *
 
 ### 8.7 Skalierung
 
-- **HP:** +12 % pro Minute linear und dazu ×1,12 pro Minute exponentiell: HP × (1 + 0,12 · Minute) · 1,12^Minute, festgelegt beim Spawn. Das ergibt ×3,4 bei 6:00, ×5,8 bei 9:00, ×9,5 bei 12:00 und ×15,3 bei 15:00. Eine rein lineare Kurve (×2,8 bei 15:00) hielt mit dem Schaden später Builds nicht mit.
-- **Schaden +4 % pro Minute**, linear und beim Spawn festgelegt.
+- **HP:** +12 % pro Minute linear und dazu ×1,13 pro Minute exponentiell: HP × (1 + 0,12 · Minute) · 1,13^Minute, festgelegt beim Spawn. Das ergibt ×2,9 bei 5:00, ×7,5 bei 10:00, ×17,5 bei 15:00 und ×39 bei 20:00; im Endlos-Modus ×180 bei 30:00 und ×770 bei 40:00. Eine rein lineare Kurve hielt mit dem Schaden später Builds nicht mit.
+- **Schaden +4 % pro Minute**, linear und beim Spawn festgelegt. Im Endlos-Modus wächst er ab 20:00 zusätzlich um den Faktor **1,05 pro Minute** – die Wand, an der jeder Endlos-Run endet (10.5).
 - **Tempo +5 % pro Minute**, linear und beim Spawn festgelegt: Bei 15:00 laufen Gegner 1,75-mal so schnell; Sterne (184 px/s) und Rhombi (210 px/s) sind dann schneller als der Spieler ohne Tempo-Axiom (160 px/s). Das Tempo ist der stärkste Hebel der Balance – mit zu langsamen Gegnern läuft der Spieler jeder Bedrohung davon.
-- **Dichte** wächst über Spawn-Rate und Obergrenze des Directors (5.2). Die **Komplexität** hebt zusätzlich die Gegner-HP (+25 % je Stufe) und die Spawn-Rate (+10 % je Stufe) an (10.5). Die HP des Bosses skalieren nur mit der Komplexität, nicht mit der Zeit.
+- **Dichte** wächst über Spawn-Rate und Obergrenze des Directors (5.2).
+- **Komplexität** (10.5): Gegner-HP ×1,16^K (×2,1 bei K 5, ×4,4 bei K 10, ×19,5 bei K 20), Gegnerschaden ×(1 + 0,03 · K), Spawn-Rate ×(1 + 0,1 · K) bis K 10, ab K 6 dazu die Mutatoren. Die HP des Bosses wachsen mit der Zeit wie die aller Gegner, mit der Komplexität aber nur linear (8.8): Exponentiell wären die späten Boss-Kämpfe minutenlanges Abtragen statt eines Kampfes.
 
 ### 8.8 Boss „Sierpinski“
 
@@ -362,16 +415,16 @@ Ein großes Dreieck mit dreieckigem Mittelloch – die erste Stufe des Sierpinsk
 - **Kantenfeuer:** Der Boss rotiert (0,45 rad/s) und feuert von jeder Kante gleichmäßig verteilte Kugeln senkrecht zur Kante nach außen (135 px/s, 10 Schaden). Durch die Rotation entstehen **Spiralwände**, zwischen denen der Spieler hindurchmanövriert.
 - **Brut:** Aus dem Mittelloch spawnen alle 8 s 3 Keile.
 - **Teilung:** Bei 0 HP teilt er sich in **3 halb so große, schnellere Kopien**, bis Tiefe 2: **1 → 3 → 9**. Die Kopien erscheinen auf halbem Weg zu den Ecken, werden mit 260 px/s nach außen gestoßen und sind 0,5 s lang unverwundbar (sie blinken, mit Blitz-Reduktion sind sie stattdessen abgedunkelt); ihre Salven sind um je 0,3 s versetzt, und jede neue Generation dreht gegenläufig zur vorigen (die erste Teilung mit 1,3-fachem Tempo). Sind alle Kopien zerstört, ist der Run gewonnen – daher der Beweis „Teile und herrsche“.
-- **Sieg:** Banner „BEWIESEN“. Die normalen Gegner verschwinden ohne Beute, alle Kugeln erlöschen, Kristalle, Pickups und die 100 Boss-Splitter fliegen zum Spieler. 3 s später endet der Run.
+- **Sieg:** Banner „BEWIESEN“. Die normalen Gegner verschwinden ohne Beute, alle Kugeln erlöschen, Kristalle, Pickups und die 100 Boss-Splitter fliegen zum Spieler. 3 s später endet der Run – im Endlos-Modus geht er weiter, und Sierpinski kehrt alle 10 Minuten zurück (30:00, 40:00 …), jedes Mal mit Banner, Sirene und HUD-Leiste.
 - **Präsentation:** Boss-Sirene beim Erscheinen (12), Hit-Stop bei jeder Teilung (0,09 s) und beim Sieg (0,2 s); die normalen Spawns laufen auf 30 % weiter. Eine einzige HUD-Leiste zeigt die verbleibenden HP aller Kopien zusammen, auch der noch nicht geborenen.
 
-| Phase | Tiefe | Kopien | Größe (Umkreis) | HP je Kopie | Tempo (px/s) | Salve                          | Besonderheit                                                      |
-| ----- | ----- | ------ | --------------- | ----------- | ------------ | ------------------------------ | ----------------------------------------------------------------- |
-| 1     | 0     | 1      | 150 px          | 4200        | 38           | alle 2,6 s, 5 Kugeln pro Kante | volle Spiralwände, Keile aus dem Mittelloch                       |
-| 2     | 1     | 3      | 76 px           | 1680        | 62           | alle 2,2 s, 3 pro Kante        | jede Kopie feuert eigene, lichtere Spiralen; keine Keil-Brut mehr |
-| 3     | 2     | 9      | 40 px           | 630         | 92           | alle 1,9 s, 2 pro Kante        | Kopien jagen mehr, als sie feuern                                 |
+| Phase | Tiefe | Kopien | Größe (Umkreis) | HP je Kopie (Basis · bei 20:00) | Tempo (px/s) | Salve                          | Besonderheit                                                      |
+| ----- | ----- | ------ | --------------- | ------------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------- |
+| 1     | 0     | 1      | 150 px          | 1000 · 39 200                   | 38           | alle 2,6 s, 5 Kugeln pro Kante | volle Spiralwände, Keile aus dem Mittelloch                       |
+| 2     | 1     | 3      | 76 px           | 400 · 15 700                    | 62           | alle 2,2 s, 3 pro Kante        | jede Kopie feuert eigene, lichtere Spiralen; keine Keil-Brut mehr |
+| 3     | 2     | 9      | 40 px           | 150 · 5 900                     | 92           | alle 1,9 s, 2 pro Kante        | Kopien jagen mehr, als sie feuern                                 |
 
-Damit 9 Kopien lesbar bleiben, feuert jede Kopie weniger Kugeln pro Kante. Die HP je Kopie betragen 40 % der Eltern-HP in Phase 2 und 37,5 % in Phase 3; zusammen hat Sierpinski 14 910 HP (× (1 + 0,25 · Komplexität)). Kontakt kostet 20 HP. Jede Generation bringt zusammen 400 XP. Als Trefferfläche dient das echte Dreieck: Geschosse, Strahlen, Auren, Explosionen und der Kontakt mit dem Spieler messen den genauen Abstand zu seinen Kanten. Nur beim Gedränge mit anderen Gegnern zählt der Inkreis.
+Damit 9 Kopien lesbar bleiben, feuert jede Kopie weniger Kugeln pro Kante. Die HP je Kopie betragen 40 % der Eltern-HP in Phase 2 und 37,5 % in Phase 3; zusammen hat Sierpinski 3550 Basis-HP. Wie jeder Gegner skaliert er mit der Zeit (8.7): Um 20:00 sind das rund 139 000 HP, bei seiner Rückkehr im Endlos-Modus um 30:00 rund 640 000. Dazu kommen ×(1 + 0,1 · Komplexität) und ab K 14 ×1,5 (Mutator „Großes Dreieck“). Kontakt kostet 20 HP. Jede Generation bringt zusammen 400 XP. Als Trefferfläche dient das echte Dreieck: Geschosse, Strahlen, Auren, Explosionen und der Kontakt mit dem Spieler messen den genauen Abstand zu seinen Kanten. Nur beim Gedränge mit anderen Gegnern zählt der Inkreis.
 
 ### 8.9 Ausbau-Bosse
 
@@ -394,12 +447,12 @@ Alle Pickups sind mathematische Symbole und folgen damit Pfeiler 1.
 | **Mal**           | × in Orange                                                           | 250 Schaden an allen Gegnern im Bild (mit Knockback, ohne Krit)             | 0,09 % pro Kill                   |
 | **Geteilt**       | ÷ in Hellblau                                                         | halbiert 6 s lang das Gegnertempo; verlangsamte Gegner färben sich hellblau | 0,09 % pro Kill                   |
 | **Splitter**      | violetter Splitter `#B77BFF`, dreht sich, wächst mit dem Wert         | Meta-Währung                                                                | 1 % pro Kill, Elites, Boss (10.1) |
-| **Ecken-Würfel**  | isometrischer Drahtwürfel, weiß, mit atmendem Halo-Ring               | Morph: +1 Ecke, +1 Kante                                                    | Elites um 3:00, 6:00 und 9:00     |
-| **Truhen-Würfel** | isometrischer Drahtwürfel, golden, mit atmendem Halo-Ring             | 3 Upgrades + 15 Splitter                                                    | die beiden Elites um 12:00        |
+| **Ecken-Würfel**  | isometrischer Drahtwürfel, weiß, mit atmendem Halo-Ring               | Morph: +1 Ecke, +1 Kante                                                    | Elites um 3:00, 6:30 und 10:00    |
+| **Truhen-Würfel** | isometrischer Drahtwürfel, golden, mit atmendem Halo-Ring             | 3 Upgrades (+1 je Rang „Kombinatorik“) + 15 Splitter                        | alle späteren Elites              |
 
 **Drops und Einsammeln.** Die Chancen gelten pro Kill und steigen mit dem Glück (Reißbrett „Wahrscheinlichkeit“). Plus, Summe, Mal und Geteilt teilen sich einen Wurf, es fällt also höchstens eines davon; der Splitter würfelt getrennt. Splitter werden wie Kristalle vom Sammelradius angezogen, die übrigen Pickups muss der Spieler berühren (22 px); nur nach dem Sieg über den Boss fliegt alles von selbst zu ihm. Kleine Pickups verschwinden, wenn der Spieler sich mehr als 2600 px entfernt. Würfel bleiben liegen, und ein Pfeil am Bildrand zeigt, wo. Summe, Mal und Geteilt kündigen sich mit einem Banner an („∑ Alle Kristalle“, „× Auslöschung“, „÷ Zeit halbiert“).
 
-**Truhen-Würfel.** Er beweist zuerst ein mögliches Theorem, die übrigen der drei Upgrades gehen an zufällige vorhandene Waffen und Axiome; gibt es nichts mehr zu verbessern, heilt er 30 HP. Dazu kommen immer 15 Splitter. Eine Meldung oben rechts („Würfel geöffnet“) listet, was er gebracht hat.
+**Truhen-Würfel.** Er beweist zuerst ein mögliches Theorem, die übrigen der drei Upgrades (mit „Kombinatorik“ mehr) gehen an zufällige vorhandene Waffen und Axiome, auch als Überstufe; gibt es nichts mehr zu verbessern, heilt er 30 HP. Dazu kommen immer 15 Splitter. Eine Meldung oben rechts („Würfel geöffnet“) listet, was er gebracht hat.
 
 **Kristalle.** Jeder Gegner hinterlässt einen Kristall mit genau seinem XP-Wert (8.2): ein Punkt 1, ein Block 5, eine Wabe 12, Elites das Zwanzigfache. Innerhalb des Sammelradius (Grundwert 60 px) beschleunigen Kristalle auf bis zu 900 px/s zum Spieler; eingesammelt wird ab 14 px Abstand, und der Erfahrungsbonus (Reißbrett „Exponent“) erhöht den Wert. Angezogene Kristalle ziehen eine **Sog-Spur** hinter sich her (11.4). Liegen **300 oder mehr Kristalle** auf der Map, entsteht kein neuer Kristall mehr: Der Wert eines neuen Drops wandert in den nächstgelegenen vorhandenen Kristall, der dadurch wächst; der Gesamtwert bleibt erhalten. Das hält die Objektzahl im Rahmen und macht spätes Einsammeln zu einem kleinen Fest.
 
@@ -407,12 +460,12 @@ Alle Pickups sind mathematische Symbole und folgen damit Pfeiler 1.
 
 Bedarf für den Aufstieg von Level L auf L+1: **5 + 10 · (L − 1)** bis Level 20, danach steiler: **195 + 13 · (L − 20)** bis Level 40 und **455 + 16 · (L − 40)** darüber (`xpForLevel` in `tuning.ts`).
 
-| Aufstieg            | 1→2 | 2→3 | 3→4 | 5→6 | 10→11 | 15→16 | 19→20 | 20→21 | 40→41 |
-| ------------------- | --- | --- | --- | --- | ----- | ----- | ----- | ----- | ----- |
-| Bedarf              | 5   | 15  | 25  | 45  | 95    | 145   | 185   | 195   | 455   |
-| XP gesamt bis dahin | 5   | 20  | 45  | 125 | 500   | 1125  | 1805  | 2000  | 8630  |
+| Aufstieg            | 1→2 | 2→3 | 3→4 | 5→6 | 10→11 | 15→16 | 19→20 | 20→21 | 40→41 | 60→61  | 99→100 |
+| ------------------- | --- | --- | --- | --- | ----- | ----- | ----- | ----- | ----- | ------ | ------ |
+| Bedarf              | 5   | 15  | 25  | 45  | 95    | 145   | 185   | 195   | 455   | 775    | 1399   |
+| XP gesamt bis dahin | 5   | 20  | 45  | 125 | 500   | 1125  | 1805  | 2000  | 8630  | 21 090 | 63 795 |
 
-Typische Level eines Runs (Richtwerte, mit denen auch Debug-Sprünge und die Titel-Demo arbeiten): 1:00 → Lv 4, 3:00 → Lv 8, 5:00 → Lv 14, 8:00 → Lv 24, 10:00 → Lv 32, 13:00 → Lv 44, 15:00 → Lv 53.
+Typische Level eines Runs mit starkem Reißbrett (Mediane der Balance-Simulation, mit denen auch Debug-Sprünge und die Titel-Demo arbeiten): 1:00 → Lv 4, 3:00 → Lv 11, 5:00 → Lv 18, 8:00 → Lv 28, 10:00 → Lv 33, 13:00 → Lv 45, 15:00 → Lv 51, 18:00 → Lv 64, 20:00 → Lv 77; im Endlos-Modus 25:00 → Lv 95, 30:00 → Lv 117, 40:00 → Lv 140. Lv 100 (Beweis „Hundert“) erreicht also nur, wer über 20:00 hinaus spielt.
 
 ## 10. Meta-Progression
 
@@ -426,7 +479,7 @@ Typische Level eines Runs (Richtwerte, mit denen auch Debug-Sprünge und die Tit
 | Run-Bonus (bei Sieg und Niederlage) | 3 je volle Minute + 1 je volle 100 Kills                                                |
 | Fallback-Karte im Draft             | +15                                                                                     |
 | Truhen-Würfel                       | 15                                                                                      |
-| Gier und Komplexität                | Multiplikator auf die ganze Summe: Gier (+10 % je Rang) × (1 + 0,2 · Komplexität)       |
+| Gier und Komplexität                | Multiplikator auf die ganze Summe: Gier (+10 % je Rang) × (1 + 0,1 · Komplexität)       |
 
 Abgerechnet wird am Ende des Runs: (gesammelte Splitter + Zeitbonus + Kill-Bonus) × Multiplikator, gerundet. Der Ergebnis-Screen zeigt die Rechnung Zeile für Zeile.
 
@@ -434,42 +487,64 @@ Beispiel: Ein Run endet bei 10:00 mit 1500 Kills → Run-Bonus 30 + 15 = 45 Spli
 
 ### 10.2 Reißbrett
 
-Das Reißbrett ist der Shop für **permanente Stat-Boni**. Die Kosten für den nächsten Rang betragen **Basis × (aktueller Rang + 1)**. Alle Käufe sind **jederzeit vollständig rückerstattbar**: „Alles erstatten“ setzt das ganze Reißbrett zum vollen Preis zurück; Experimentieren kostet also nichts. Die Einträge sind unabhängig von den Axiom-Freischaltungen.
+Das Reißbrett ist der Shop für **permanente Stat-Boni**. Alle Käufe sind **jederzeit vollständig rückerstattbar**: „Alles erstatten“ setzt das ganze Reißbrett zum vollen Preis zurück; Experimentieren kostet also nichts. Die Einträge sind unabhängig von den Axiom-Freischaltungen.
 
-| Eintrag                | Wirkung pro Rang                                                                                                               | Max. Rang | Basis-Kosten | Komplett |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------ | -------- |
-| **Potenz**             | +5 % Schaden                                                                                                                   | 5         | 60           | 900      |
-| **Dichte**             | +1 Rüstung                                                                                                                     | 3         | 120          | 720      |
-| **Volumen**            | +10 Max-HP                                                                                                                     | 5         | 80           | 1 200    |
-| **Integral**           | +0,1 HP/s                                                                                                                      | 5         | 100          | 1 500    |
-| **Frequenz**           | −2,5 % Cooldown                                                                                                                | 2         | 250          | 750      |
-| **Skalierung**         | +5 % Fläche                                                                                                                    | 2         | 180          | 540      |
-| **Impuls**             | +10 % Projektiltempo                                                                                                           | 2         | 100          | 300      |
-| **Beschleunigung**     | +5 % Lauftempo                                                                                                                 | 2         | 120          | 360      |
-| **Gravitation**        | +25 % Sammelradius                                                                                                             | 2         | 80           | 240      |
-| **Wahrscheinlichkeit** | +10 % Glück (Drop-Chancen, auch für Splitter)                                                                                  | 3         | 150          | 900      |
-| **Exponent**           | +3 % XP                                                                                                                        | 5         | 100          | 1 500    |
-| **Gier**               | +10 % Splitter                                                                                                                 | 5         | 80           | 1 200    |
-| **Neu zeichnen**       | +1 Reroll pro Run                                                                                                              | 3         | 200          | 1 200    |
-| **Radieren**           | +1 Banish pro Run                                                                                                              | 3         | 200          | 1 200    |
-| **Überspringen**       | +1 Skip pro Run                                                                                                                | 3         | 100          | 600      |
-| **Zweiter Versuch**    | 1 Wiederbelebung pro Run: 50 % HP, 2 s i-Frames, alle normalen Gegner im Umkreis von 300 px sterben (Banner „ZWEITER VERSUCH“) | 1         | 800          | 800      |
-| **Vierte Karte**       | 4 statt 3 Karten pro Draft                                                                                                     | 1         | 1 000        | 1 000    |
+**Erweiterungen.** Jeder Eintrag hat vier Rang-Obergrenzen: ohne Erweiterung (T0) und mit Erweiterung I, II und III. Eine Erweiterung öffnet jeder der drei Beweise **Grenzwert**, **Konvergenz** und **Unendlichkeit** (10.3), gleich in welcher Reihenfolge; die Kachel zeigt „Rang r/max“ der aktuellen Stufe und, wenn alle Ränge gekauft sind, „Erweiterung nötig“. Sechs Einträge sind zusätzlich per Beweis gesperrt und zeigen bis dahin ein Schloss mit dem Namen des Beweises.
 
-Mit diesen Werten kostet der komplette Ausbau 14 910 Splitter.
+**Kosten.** Rang r (ab 0) kostet **Basis × (r + 1)**. Ränge über der T0-Obergrenze werden steiler: Jeder dieser Ränge kostet zusätzlich ×1,08 je Rang über T0, also Basis × (r + 1) × 1,08^(r + 1 − T0). Die T0-Ränge kosten damit genau so viel wie vor den Erweiterungen (die alten 17 Einträge komplett: 14 910 Splitter).
+
+| Eintrag                | Wirkung pro Rang                                                                                                                | Ränge T0 / I / II / III | Basis | Kosten komplett T0 / I / II / III | Gesperrt bis       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----- | --------------------------------- | ------------------ |
+| **Potenz**             | +5 % Schaden                                                                                                                    | 5 / 10 / 15 / 20        | 60    | 900 / 4 001 / 11 348 / 26 247     | –                  |
+| **Dichte**             | +1 Rüstung                                                                                                                      | 3 / 4 / 5 / 6           | 120   | 720 / 1 238 / 1 938 / 2 845       | –                  |
+| **Volumen**            | +10 Max-HP                                                                                                                      | 5 / 10 / 15 / 20        | 80    | 1 200 / 5 332 / 15 128 / 34 993   | –                  |
+| **Integral**           | +0,1 HP/s                                                                                                                       | 5 / 10 / 15 / 20        | 100   | 1 500 / 6 665 / 18 911 / 43 743   | –                  |
+| **Frequenz**           | −2,5 % Cooldown                                                                                                                 | 2 / 4 / 6 / 8           | 250   | 750 / 2 726 / 6 342 / 12 087      | –                  |
+| **Skalierung**         | +5 % Fläche                                                                                                                     | 2 / 4 / 6 / 8           | 180   | 540 / 1 963 / 4 566 / 8 702       | –                  |
+| **Impuls**             | +10 % Projektiltempo                                                                                                            | 2 / 3 / 4 / 5           | 100   | 300 / 624 / 1 091 / 1 721         | –                  |
+| **Beschleunigung**     | +5 % Lauftempo                                                                                                                  | 2 / 3 / 4 / 6           | 120   | 360 / 749 / 1 309 / 3 045         | –                  |
+| **Gravitation**        | +25 % Sammelradius                                                                                                              | 2 / 3 / 4 / 6           | 80    | 240 / 499 / 872 / 2 029           | –                  |
+| **Wahrscheinlichkeit** | +10 % Glück (Drop-Chancen, auch für Splitter)                                                                                   | 3 / 5 / 8 / 10          | 150   | 900 / 2 423 / 6 749 / 11 462      | –                  |
+| **Exponent**           | +3 % XP                                                                                                                         | 5 / 10 / 15 / 20        | 100   | 1 500 / 6 665 / 18 911 / 43 743   | –                  |
+| **Gier**               | +10 % Splitter                                                                                                                  | 5 / 8 / 10 / 12         | 80    | 1 200 / 3 177 / 5 332 / 8 373     | –                  |
+| **Neu zeichnen**       | +1 Reroll pro Run                                                                                                               | 3 / 5 / 7 / 10          | 200   | 1 200 / 3 230 / 6 647 / 15 282    | –                  |
+| **Radieren**           | +1 Banish pro Run                                                                                                               | 3 / 4 / 5 / 6           | 200   | 1 200 / 2 064 / 3 230 / 4 742     | –                  |
+| **Überspringen**       | +1 Skip pro Run                                                                                                                 | 3 / 4 / 5 / 6           | 100   | 600 / 1 032 / 1 615 / 2 371       | –                  |
+| **Zweiter Versuch**    | +1 Wiederbelebung pro Run: 50 % HP, 2 s i-Frames, alle normalen Gegner im Umkreis von 300 px sterben (Banner „ZWEITER VERSUCH“) | 1 / 1 / 2 / 3           | 800   | 800 / 800 / 2 528 / 5 327         | –                  |
+| **Vierte Karte**       | 4 statt 3 Karten pro Draft                                                                                                      | 1 / 1 / 1 / 1           | 1 000 | 1 000 / 1 000 / 1 000 / 1 000     | –                  |
+| **Tangente**           | +2 % Krit-Chance                                                                                                                | 3 / 5 / 8 / 10          | 150   | 900 / 2 423 / 6 749 / 11 462      | „Fünftausend“      |
+| **Extremum**           | +10 % Krit-Schaden                                                                                                              | 3 / 5 / 8 / 10          | 150   | 900 / 2 423 / 6 749 / 11 462      | „Wiederkehr“       |
+| **Kontinuität**        | +5 % Wirkdauer                                                                                                                  | 2 / 3 / 5 / 6           | 150   | 450 / 936 / 2 581 / 3 805         | „Kritischer Punkt“ |
+| **Kombinatorik**       | +1 Upgrade pro Truhen-Würfel                                                                                                    | 1 / 2 / 2 / 3           | 500   | 500 / 1 580 / 1 580 / 3 330       | „Überstufe“        |
+| **Induktion**          | Startwaffe beginnt 1 Level höher (höchstens Lv 8)                                                                               | 1 / 2 / 3 / 4           | 300   | 300 / 948 / 1 998 / 3 510         | „Hundert“          |
+| **Vielfaches**         | +1 Anzahl: Pfeil, Kreis, Welle, Strahl oder Fraktal                                                                             | 1 / 1 / 1 / 2           | 4 000 | 4 000 / 4 000 / 4 000 / 12 640    | „Komplexität XV“   |
+
+Der komplette Ausbau kostet **21 960** Splitter ohne Erweiterung, **56 498** mit Erweiterung I, **131 174** mit II und **273 921** mit III. Das Pacing-Ziel sind rund 150 gute Runs vom frischen Spielstand bis zum vollen Reißbrett (5.3).
 
 ### 10.3 Beweise
 
-Beweise sind die Achievements des Spiels, und jeder schaltet etwas frei. Die ersten ergeben sich in den ersten Runs fast von selbst, die späteren verlangen Können. Geprüft wird am Ende eines Runs (Sieg, Tod oder Aufgeben): Der Ergebnis-Screen feiert neue Beweise unter „Neu bewiesen“, die Freischaltung gilt ab dem nächsten Run. Ein kurzer Hinweis schon im Moment des Beweises ist angedacht, aber noch nicht umgesetzt. Das Blatt „Beweise“ zeigt jeden Satz mit Fortschrittsbalken (bester Einzelrun) und dazu eine Lebenszeit-Statistik.
+Beweise sind die Achievements des Spiels, und fast jeder schaltet etwas frei. Die ersten sechs ergeben sich in den ersten Runs fast von selbst; die zehn späteren sind gestaffelt und tragen die Langzeit-Progression: Sie öffnen neue Reißbrett-Einträge und die drei Erweiterungen, und die Komplexitäts-Beweise markieren die Leiter bis K 20. Geprüft wird am Ende eines Runs (Sieg, Tod oder Aufgeben): Der Ergebnis-Screen feiert neue Beweise unter „Neu bewiesen“, die Freischaltung gilt ab dem nächsten Run. Ein kurzer Hinweis schon im Moment des Beweises ist angedacht, aber noch nicht umgesetzt. Das Blatt „Beweise“ zeigt jeden Satz mit Fortschrittsbalken (bester Einzelrun) und dazu eine Lebenszeit-Statistik.
 
-| Beweis                 | Bedingung                  | Freischaltung                          |
-| ---------------------- | -------------------------- | -------------------------------------- |
-| **Erster Beweis**      | 5:00 überleben             | Waffe **Strahl**                       |
-| **Quadratur**          | das Quadrat erreichen      | Axiom **Symmetrie**                    |
-| **Vollendete Form**    | das Hexagon erreichen      | Charakter **Nova**                     |
-| **Q.E.D.**             | das erste Theorem beweisen | Waffe **Fraktal**                      |
-| **Tausend Punkte**     | 1000 Kills in einem Run    | Axiom **Integral**                     |
-| **Teile und herrsche** | Sierpinski besiegen        | **Endlos-Modus** + **Komplexität 1–5** |
+| Beweis                 | Bedingung                                | Freischaltung                          |
+| ---------------------- | ---------------------------------------- | -------------------------------------- |
+| **Erster Beweis**      | 5:00 überleben                           | Waffe **Strahl**                       |
+| **Quadratur**          | das Quadrat erreichen                    | Axiom **Symmetrie**                    |
+| **Vollendete Form**    | das Hexagon erreichen                    | Charakter **Nova**                     |
+| **Q.E.D.**             | das erste Theorem beweisen               | Waffe **Fraktal**                      |
+| **Tausend Punkte**     | 1000 Kills in einem Run                  | Axiom **Integral**                     |
+| **Teile und herrsche** | Sierpinski besiegen                      | **Endlos-Modus** + **Komplexität 1–5** |
+| **Fünftausend**        | 5000 Kills in einem Run                  | Reißbrett-Eintrag **Tangente**         |
+| **Überstufe**          | eine Waffe oder ein Theorem auf Lv 25    | Reißbrett-Eintrag **Kombinatorik**     |
+| **Kritischer Punkt**   | Sierpinski auf Komplexität 5 besiegen    | Reißbrett-Eintrag **Kontinuität**      |
+| **Wiederkehr**         | Sierpinski zweimal in einem Run besiegen | Reißbrett-Eintrag **Extremum**         |
+| **Hundert**            | Lv 100 in einem Run                      | Reißbrett-Eintrag **Induktion**        |
+| **Grenzwert**          | 30:00 überleben                          | eine **Reißbrett-Erweiterung**         |
+| **Konvergenz**         | Sierpinski auf Komplexität 10 besiegen   | eine **Reißbrett-Erweiterung**         |
+| **Komplexität XV**     | Sierpinski auf Komplexität 15 besiegen   | Reißbrett-Eintrag **Vielfaches**       |
+| **Unendlichkeit**      | 40:00 überleben                          | eine **Reißbrett-Erweiterung**         |
+| **Formvollendet**      | Sierpinski auf Komplexität 20 besiegen   | – („die Vollendung selbst“)            |
+
+Die Zeit-Beweise ab 30:00 und „Wiederkehr“ gehen nur im Endlos-Modus; die Komplexitäts-Beweise zählen auch einen Sieg auf einer höheren Stufe. Das Blatt „Beweise“ scrollt bei fester Größe; die Lebenszeit-Statistik nennt auch die höchste gemeisterte Komplexität und die höchste Waffenstufe.
 
 ### 10.4 Kompendium
 
@@ -479,14 +554,47 @@ Das Kompendium sammelt alle entdeckten **Waffen, Theoreme, Axiome, Gegner und Fo
 
 Beide schaltet der Beweis „Teile und herrsche“ frei; eingestellt werden sie in der Formwahl, die sich die letzte Wahl merkt.
 
-- **Endlos-Modus:** Sierpinski erscheint wie gewohnt um 15:00, doch nach seinem Sieg läuft der Run weiter. Ab 15:00 wächst die Spawn-Rate um 8 % pro Minute (solange der Boss lebt, bleibt sie auf 30 %), und die Obergrenze lebender Gegner wächst mit, höchstens auf das Doppelte. Der Run endet erst mit dem Tod; der Ergebnis-Screen heißt dann „Grenzwert erreicht“, gewertet werden Zeit und Kills.
-- **Komplexität 0–5:** vor dem Run wählbar, Stufe 0 ist der Standard-Beweis. Jede Stufe bringt **+25 % Gegner-HP** (auch für den Boss), **+10 % Spawn-Rate** und **+20 % Splitter**.
+**Endlos-Modus.** Sierpinski erscheint wie gewohnt um 20:00, doch nach seinem Sieg läuft der Run weiter:
+
+- Ab 20:00 wächst die Spawn-Rate um 8 % pro Minute (solange der Boss lebt, bleibt sie auf 30 %), und die Obergrenze lebender Gegner wächst mit, höchstens auf das Doppelte.
+- **Endlos-Rhythmus:** Alle 10 Minuten wiederholt sich eine eigene Runde aus der Wellentabelle – +1:30 Werfer-Elite, +2:30 Ring aus 40 Blöcken, +4:00 zwei Waben-Elites, +5:30 Gerade aus 60 Keilen, +7:00 Ring aus 32 Rhomben, +8:30 zwei Rhombus-Elites, +10:00 **Sierpinski kehrt zurück** (30:00, 40:00 …). Alle diese Elites tragen Truhen-Würfel. Lebt der vorige Boss noch, fällt die Rückkehr aus.
+- **Die Wand:** Ab 20:00 wächst der Gegnerschaden zusätzlich um den Faktor 1,05 pro Minute (×1,6 bei 30:00, ×2,7 bei 40:00, ×4,3 bei 50:00). Zusammen mit der HP-Kurve beendet das jeden Run irgendwann; der Ergebnis-Screen heißt dann „Grenzwert erreicht“, gewertet werden Zeit und Kills. Die Beweise „Grenzwert“ (30:00), „Unendlichkeit“ (40:00) und „Wiederkehr“ (zwei Boss-Siege) liegen auf diesem Weg.
+
+**Komplexität K 0–20.** Vor dem Run wählbar, K 0 ist der Standard-Beweis. „Teile und herrsche“ öffnet K 1–5; danach öffnet jeder Sieg über Sierpinski auf K n die Stufe K n + 1 (der Ergebnis-Screen meldet „Komplexität K n freigeschaltet“). Jede Stufe wirkt so:
+
+| Wirkung       | je Stufe             | K 5   | K 10  | K 15  | K 20  |
+| ------------- | -------------------- | ----- | ----- | ----- | ----- |
+| Gegner-HP     | ×1,16 (exponentiell) | ×2,1  | ×4,41 | ×9,27 | ×19,5 |
+| Sierpinski-HP | +10 % (linear)       | ×1,5  | ×2    | ×2,5  | ×3    |
+| Gegnerschaden | +3 %                 | ×1,15 | ×1,3  | ×1,45 | ×1,6  |
+| Spawn-Rate    | +10 %, nur bis K 10  | ×1,5  | ×2    | ×2    | ×2    |
+| Splitter      | +10 %                | ×1,5  | ×2    | ×2,5  | ×3    |
+
+Die Spawn-Rate endet bei K 10, damit die Gegnerzahl (und die Rechenlast) im Rahmen bleibt; darüber tragen HP und Mutatoren die Schwierigkeit. **Ab K 6 kommt je Stufe ein Mutator hinzu**; sie gelten kumulativ, K 20 trägt alle fünfzehn:
+
+| K   | Mutator                    | Wirkung                             |
+| --- | -------------------------- | ----------------------------------- |
+| 6   | Beschleunigte Geschosse    | Gegnergeschosse +25 % Tempo         |
+| 7   | Doppelte Elite             | doppelt so viele Elites             |
+| 8   | Dichte Formationen         | Ringe und Geraden +50 % Gegner      |
+| 9   | Hast                       | Gegner +10 % Tempo                  |
+| 10  | Schwere Elite              | Elites +50 % HP                     |
+| 11  | Knappheit                  | halb so viele Heil-Drops            |
+| 12  | Gedränge                   | Gegner-Obergrenze +25 %             |
+| 13  | Wucht                      | Gegnerschaden +25 %                 |
+| 14  | Großes Dreieck             | Sierpinski +50 % HP                 |
+| 15  | Entropie                   | Kristalle −15 % XP                  |
+| 16  | Beschleunigte Geschosse II | Gegnergeschosse weitere +20 % Tempo |
+| 17  | Hast II                    | Gegner weitere +10 % Tempo          |
+| 18  | Wucht II                   | Gegnerschaden weitere +25 %         |
+| 19  | Dreifache Elite            | dreimal so viele Elites             |
+| 20  | Vollendung                 | Gegner +50 % HP (nicht Sierpinski)  |
 
 ### 10.6 Speicherstand
 
 - Gespeichert wird in `localStorage` unter `formvollendet.save` als **versioniertes JSON** (Schema v1). Bei einer neuen Version migrieren Migrationsschritte alte Stände, einer pro Versionssprung. Ohne `localStorage` (etwa im privaten Modus) hält das Spiel den Fortschritt nur für die Dauer des Tabs.
-- Inhalt: Splitter, Reißbrett-Ränge, erfüllte Beweise, Kompendium (gesehene Waffen, Axiome und Gegner), Lebenszeit-Statistik mit Bestwerten und die letzte Formwahl. Freischaltungen werden nicht gespeichert, sondern aus den Beweisen abgeleitet. Die Einstellungen liegen getrennt unter `formvollendet.settings.v1`.
-- Beim Laden wird der Stand bereinigt: Unbekannte IDs fallen weg, Ränge über einem inzwischen gesenkten Maximum werden erstattet.
+- Inhalt: Splitter, Reißbrett-Ränge, erfüllte Beweise, Kompendium (gesehene Waffen, Axiome und Gegner), Lebenszeit-Statistik mit Bestwerten (auch höchste gemeisterte Komplexität, höchste Waffenstufe und meiste Boss-Siege in einem Run) und die letzte Formwahl samt Modus und Komplexität. Neue Felder bekommen beim Laden Standardwerte; ein Stand von vor dem Langzeit-Ausbau lädt ohne Versionssprung und behält Ränge und Splitter. Freischaltungen werden nicht gespeichert, sondern aus den Beweisen abgeleitet. Die Einstellungen liegen getrennt unter `formvollendet.settings.v1`.
+- Beim Laden wird der Stand bereinigt: Unbekannte IDs fallen weg, Ränge über dem Maximum der bewiesenen Erweiterungen (oder einem inzwischen gesenkten Maximum) werden erstattet, und die gewählte Komplexität wird auf die freigeschaltete begrenzt.
 - **Fallback bei korruptem Save:** Das Spiel startet mit einem frischen Stand, statt abzustürzen. Die beschädigten Daten bleiben unter `formvollendet.save.unreadable` erhalten, und der Titel zeigt einen Hinweis. Ein Stand aus einer neueren Version wird genauso behandelt.
 - Debug-Sitzungen und Starts mit Cheat-Parametern schreiben nie in den Speicherstand; Titel und Ergebnis-Screen weisen darauf hin. Die Einstellungen bieten „Spielstand löschen“ mit Rückfrage.
 
@@ -607,13 +715,13 @@ Alle Screens sind ein DOM-Overlay über dem Canvas.
    └──► Reißbrett · Beweise · Kompendium · Einstellungen   (zurück mit Esc / B)
 ```
 
-Die Menüs sind sechs **Blätter einer Konstruktionszeichnung** – 1 Titel, 2 Formwahl, 3 Reißbrett, 4 Beweise, 5 Kompendium, 6 Einstellungen –, jedes mit Schriftfeld („M 1:1“, „n / 6“). Sie liegen als Stapel übereinander: „Zurück“ (Esc / B) führt zum vorherigen Blatt. Maus, Tastatur und Gamepad teilen sich eine Fokus-Markierung. Hinter den Menüs läuft eine **Demo**: Ein Bot spielt mit einer freigeschalteten Form einen unverwundbaren Endlos-Run ab einer zufälligen Minute zwischen 2:00 und 10:00, ruhiger dargestellt (keine Schadenszahlen, kein Screenshake, Blitz-Reduktion) und alle 75 s neu. Auf dem Titel rückt die Kamera die Figur in die rechte Bildhälfte („Abb. 1 — Beweis in Arbeit“).
+Die Menüs sind sechs **Blätter einer Konstruktionszeichnung** – 1 Titel, 2 Formwahl, 3 Reißbrett, 4 Beweise, 5 Kompendium, 6 Einstellungen –, jedes mit Schriftfeld („M 1:1“, „n / 6“). Sie liegen als Stapel übereinander: „Zurück“ (Esc / B) führt zum vorherigen Blatt. Maus, Tastatur und Gamepad teilen sich eine Fokus-Markierung; nur Tastatur und Gamepad scrollen das fokussierte Element ins Bild, der Mauszeiger nie. Alle Blätter haben eine **feste Größe**: Lange Inhalte scrollen im Blatt, statt es wachsen zu lassen, und eine andere Auswahl verschiebt nichts (feste Breiten, Ziffern mit fester Breite, Zustände nur über Klasse oder Deckkraft). Dasselbe gilt für Draft, Pause und Ergebnis. Hinter den Menüs läuft eine **Demo**: Ein Bot spielt mit einer freigeschalteten Form einen unverwundbaren Endlos-Run ab einer zufälligen Minute zwischen 2:00 und 10:00, ruhiger dargestellt (keine Schadenszahlen, kein Screenshake, Blitz-Reduktion) und alle 75 s neu. Auf dem Titel rückt die Kamera die Figur in die rechte Bildhälfte („Abb. 1 — Beweis in Arbeit“).
 
-- **Titel:** der Satz „Jede Form lässt sich vollenden.“ mit dem Beweis „Überlebe fünfzehn Minuten.“, das Inhaltsverzeichnis § 1–5 (Spielen mit gewählter Form und Modus, Reißbrett mit Kontostand, Beweise „x / y bewiesen“, Kompendium „x / y entdeckt“, Einstellungen), eine Steuerungszeile und der Rekord (längster Run, höchstes Level). Hinweise erscheinen, wenn der Spielstand neu angelegt werden musste (10.6) oder eine Debug-Sitzung nichts speichert.
-- **Formwahl:** beide Formen als Karten mit HP, Tempo, Krit, Startwaffe, Signatur-Skill und Eigenschaft; eine gesperrte Form nennt den nötigen Beweis. Darunter Modus (Normal: „15 Minuten, dann Sierpinski.“ oder Endlos) und Komplexität (K 0–5, mit Wirkung im Klartext); beides bleibt bis „Teile und herrsche“ gesperrt. „Beweis antreten“ startet den Run, die Wahl merkt sich der Spielstand.
-- **Reißbrett:** alle Einträge mit Rang, Preis und Wirkung, dazu Kontostand, verbaute Splitter und „Alles erstatten“ mit Rückfrage (10.2). **Beweise** und **Kompendium** siehe 10.3 und 10.4, **Einstellungen** siehe 13.4.
-- **Pause** (Esc, P, Start, Fokusverlust oder getrenntes Gamepad; auch aus dem offenen Draft heraus, der danach wieder erscheint): zugleich die **Build-Übersicht** mit Charakter, Form, Level und Zeit, dem Polygon in groß, Ecke für Ecke Waffe und Kante mit Stufe (MAX, Q.E.D.) und allen Werten von Max-HP bis Krit. Knöpfe: Weiter, Einstellungen, Aufgeben. Die Rückfrage beim Aufgeben startet auf „Abbrechen“, damit ein Doppeldruck nicht versehentlich aufgibt.
-- **Ergebnis-Screen:** erscheint 1,2 s nach dem Tod (der Spieler zerspringt erst) und beim Sieg gut 3 s nach dem Banner „BEWIESEN“ (5.1). Er zeigt das Urteil – „Q.E.D.“ nach dem Sieg, „Widerlegt“ nach Tod oder Aufgeben, „Grenzwert erreicht“ nach dem Tod im Endlos-Modus –, das Build-Polygon, Zeit, Level, Kills, erreichte Form und Theoreme, nach einem Tod auch „Besiegt von“ (der Gegnertyp oder die Gegnerkugel mit dem tödlichen Treffer), „Schaden nach Quelle“ (Waffen, Skill, Nova-Zacken, Stern-Explosionen, ×-Bombe) mit Balken und Anteil, die Splitter-Abrechnung (10.1), neue Kompendium-Einträge und unter „Neu bewiesen“ die frisch erfüllten Beweise mit ihren Freischaltungen. Knöpfe: „Nochmal“ (gleiche Form, gleicher Modus) und „Zum Titel“; ins Reißbrett geht es über den Titel.
+- **Titel:** der Satz „Jede Form lässt sich vollenden.“ mit dem Beweis „Überlebe zwanzig Minuten.“, das Inhaltsverzeichnis § 1–5 (Spielen mit gewählter Form und Modus, Reißbrett mit Kontostand, Beweise „x / y bewiesen“, Kompendium „x / y entdeckt“, Einstellungen), eine Steuerungszeile und der Rekord (längster Run, höchstes Level). Hinweise erscheinen, wenn der Spielstand neu angelegt werden musste (10.6) oder eine Debug-Sitzung nichts speichert.
+- **Formwahl:** beide Formen als Karten mit HP, Tempo, Krit, Startwaffe, Signatur-Skill und Eigenschaft; eine gesperrte Form nennt den nötigen Beweis. Darunter Modus (Normal: „20 Minuten, dann Sierpinski.“ oder Endlos: „Es geht weiter: Die Dichte wächst, alle 10 Minuten kehrt Sierpinski zurück.“) und Komplexität als **Maßstab** K 0–20 (freigeschaltete Stufen umrandet, gesperrte gestrichelt, Beschriftung bei 0, 5, 10, 15 und 20). Zwei feste Zeilen darunter nennen die Faktoren der Stufe (K 10: „Gegner-HP ×4,41 · Gegnerschaden ×1,3 · Spawns ×2 · Splitter ×2“) und die Mutatoren („5 Mutatoren · neu: Schwere Elite – Elite-Gegner +50 % HP“) bzw. am Ende der freigeschalteten Stufen, was die nächste öffnet („K 7 öffnet ein Sieg über Sierpinski auf K 6.“). Modus und Komplexität bleiben bis „Teile und herrsche“ gesperrt. „Beweis antreten“ startet den Run, die Wahl merkt sich der Spielstand.
+- **Reißbrett:** alle 23 Einträge als Kacheln mit Wirkung, Preis, „Rang r/max“ und einem Rangbalken fester Breite (gekaufte Ränge gefüllt, kaufbare leer, Ränge späterer Erweiterungen gestrichelt); gesperrte Einträge zeigen ein Schloss und ihren Beweis. Dazu Kontostand, verbaute Splitter, die Erweiterungen mit den Beweisen, die sie öffnen, und „Alles erstatten“ mit Rückfrage (10.2). **Beweise** und **Kompendium** siehe 10.3 und 10.4, **Einstellungen** siehe 13.4.
+- **Pause** (Esc, P, Start, Fokusverlust oder getrenntes Gamepad; auch aus dem offenen Draft heraus, der danach wieder erscheint): zugleich die **Build-Übersicht** mit Charakter, Form, Level und Zeit, dem Polygon in groß, Ecke für Ecke Waffe und Kante mit Stufe („Lv 23“, bei Theoremen in Gold; MAX erst bei Lv 99 oder am Cap) und allen Werten von Max-HP bis Krit. Knöpfe: Weiter, Einstellungen, Aufgeben. Die Rückfrage beim Aufgeben startet auf „Abbrechen“, damit ein Doppeldruck nicht versehentlich aufgibt.
+- **Ergebnis-Screen:** erscheint 1,2 s nach dem Tod (der Spieler zerspringt erst) und beim Sieg gut 3 s nach dem Banner „BEWIESEN“ (5.1). Er zeigt das Urteil – „Q.E.D.“ nach dem Sieg, „Widerlegt“ nach Tod oder Aufgeben, „Grenzwert erreicht“ nach dem Tod im Endlos-Modus –, das Build-Polygon, Zeit, Level, Kills, erreichte Form und Theoreme, nach einem Tod auch „Besiegt von“ (der Gegnertyp oder die Gegnerkugel mit dem tödlichen Treffer), „Schaden nach Quelle“ (Waffen, Skill, Nova-Zacken, Stern-Explosionen, ×-Bombe) mit Balken und Anteil, die Splitter-Abrechnung (10.1), neue Kompendium-Einträge unter „Neu bewiesen“ die frisch erfüllten Beweise mit ihren Freischaltungen und, wenn der Sieg eine neue Stufe geöffnet hat, „Komplexität K n freigeschaltet“. Knöpfe: „Nochmal“ (gleiche Form, gleicher Modus) und „Zum Titel“; ins Reißbrett geht es über den Titel.
 
 Fehlt WebGL oder tritt ein unerwarteter Fehler auf, zeigt das Spiel statt eines leeren Bildschirms einen Hinweis mit „Neu laden“.
 
@@ -625,7 +733,7 @@ Fehlt WebGL oder tritt ein unerwarteter Fehler auf, zeigt das Spiel statt eines 
 | Timer              | oben Mitte                       | Run-Zeit (mm:ss)                                                                                                                                                                                             |
 | Level / Kills      | links oben                       | aktuelles Level und Kills                                                                                                                                                                                    |
 | Splitter           | rechts oben                      | im Run gesammelte Splitter                                                                                                                                                                                   |
-| Boss-Anzeige       | oben, unter dem Timer            | „SIERPINSKI“ und ein einziger Balken mit den verbleibenden HP aller Teile, auch der noch nicht abgespaltenen; keine Stückzahl                                                                                |
+| Boss-Anzeige       | oben, unter dem Timer            | „SIERPINSKI“ und ein einziger Balken mit den verbleibenden HP aller Teile, auch der noch nicht abgespaltenen; keine Stückzahl. Erscheint bei jeder Rückkehr im Endlos-Modus neu                              |
 | HP-Balken          | direkt unter dem Spieler         | aktuelle HP (44 × 4 px, von Rot nach Grün), wandert mit                                                                                                                                                      |
 | Skill-CD-Ring      | unten Mitte                      | Symbol des Signatur-Skills in einem sich füllenden Ring in Charakterfarbe, darunter „Leertaste“; leuchtet auf, sobald der Skill bereit ist                                                                   |
 | Mini-Build-Polygon | unten links                      | SVG (132 px): Waffen-Glyphen an den Ecken, Axiom-Farben und -Symbole an den Kanten, Theoreme mit Goldring; die fehlenden Ecken bis zum Hexagon als blasse, gestrichelte Kontur                               |
@@ -647,9 +755,9 @@ Fehlt WebGL oder tritt ein unerwarteter Fehler auf, zeigt das Spiel statt eines 
 | Draft: Überspringen | S                                                          | Y                           |
 | Menüs               | Maus oder Pfeiltasten/WASD + Enter/Leertaste, Esc = zurück | D-Pad/Stick + A, B = zurück |
 
-Das Spiel pausiert automatisch bei **Fokusverlust** (Tab-Wechsel, Fenster verlassen) und wenn das Gamepad, mit dem gerade gespielt wird, getrennt wird; danach steuert wieder die Tastatur. Es zählt das erste verbundene Gamepad mit Standard-Belegung; der Stick hat eine radiale Totzone und steuert in Menüs wie das D-Pad. Zum versehentlichen Auslösen im Draft siehe den Eingabeschutz in 7.4.
+Das Spiel pausiert automatisch bei **Fokusverlust** (Tab-Wechsel, Fenster verlassen) und wenn das Gamepad, mit dem gerade gespielt wird, getrennt wird; danach steuert wieder die Tastatur. Es zählt das erste verbundene Gamepad mit Standard-Belegung; der Stick hat eine radiale Totzone und steuert in Menüs wie das D-Pad. Zum versehentlichen Auslösen im Draft siehe den Eingabeschutz in 7.5.
 
-**Entwickler-Parameter:** `?seed`, `?t` (Startsekunde samt passendem Build), `?char` und `?stress` starten direkt einen Run, `?scene` öffnet ein bestimmtes Blatt, `?splitter` setzt den Kontostand und `?unlock` schaltet alles frei. `?debug` aktiviert F1–F7 (Overlay, +Level, Elite, +60 s, Boss, Gottmodus, Feld leeren). Sitzungen mit `?debug`, `?t`, `?stress`, `?splitter` oder `?unlock` speichern nie (10.6); `?seed`, `?char` und `?scene` allein gelten als normale Sitzung.
+**Entwickler-Parameter:** `?seed`, `?t` (Startsekunde samt passendem Build), `?char` und `?stress` starten direkt einen Run, `?scene` öffnet ein bestimmtes Blatt, `?splitter` setzt den Kontostand und `?unlock` schaltet alles frei (alle Beweise samt Erweiterungen, Komplexität bis K 20). `?debug` aktiviert F1–F7 (Overlay, +Level, Elite, +60 s, Boss, Gottmodus, Feld leeren). Sitzungen mit `?debug`, `?t`, `?stress`, `?splitter` oder `?unlock` speichern nie (10.6); `?seed`, `?char` und `?scene` allein gelten als normale Sitzung.
 
 ### 13.4 Einstellungen und Barrierefreiheit
 
@@ -669,7 +777,7 @@ Das Spiel pausiert automatisch bei **Fokusverlust** (Tab-Wechsel, Fenster verlas
 
 ## 14. Ausbau nach MVP
 
-Das MVP (Meilensteine M0–M5) umfasst Delta und Nova, 6 Waffen, 8 Axiome, 6 Theoreme, 7 Gegner-Archetypen, den Boss Sierpinski sowie Endlos-Modus und Komplexität 1–5 als Freischaltung. Alles Folgende ist Ausbau; kursive Einträge sind Ideenskizzen, keine Festlegungen.
+Das MVP (Meilensteine M0–M5) umfasst Delta und Nova, 6 Waffen, 8 Axiome, 6 Theoreme, 7 Gegner-Archetypen, den Boss Sierpinski sowie Endlos-Modus und Komplexität 1–5 als Freischaltung. Der Langzeit-Ausbau hat Überstufen (7.4), den Endlos-Rhythmus, die Komplexitäts-Leiter bis K 20 mit Mutatoren (10.5) und die Reißbrett-Erweiterungen (10.2) ergänzt. Alles Folgende ist weiterer Ausbau; kursive Einträge sind Ideenskizzen, keine Festlegungen.
 
 **Charaktere:** **Bastion** (Tank, dicke Kanten, Bollwerk-Schild), **Zirkel** (Fläche, gerundete Ecken, Puls) und **Fraktal** (Beschwörer, Mini-Polygone an den Ecken, Teilung in Klone); Werte siehe Abschnitt 6. Freischaltung über neue Beweise.
 
@@ -703,25 +811,28 @@ Impuls, Dichte, Wahrscheinlichkeit und Exponent gibt es bereits als Reißbrett-E
 
 **Kreis-Transzendenz:** Im Endlos-Modus kann das Hexagon über eine besondere Bedingung zum **Kreis** werden – dem Polygon mit unendlich vielen Ecken. _Idee: Alle Waffen feuern dann vom gesamten Umfang statt von festen Ecken, und die Axiome verschmelzen zu einem einzigen leuchtenden Ring._
 
-**Endlos und Komplexität:** Beide sind im MVP als Freischaltung enthalten. _Ausbau: höhere Komplexitätsstufen mit eigenen Mutatoren (z. B. schnellere Gegnerkugeln, doppelte Elites) und ein Tages-Seed – die deterministische Simulation macht Runs mit gleichem Seed direkt vergleichbar._
+**Endlos und Komplexität:** Endlos-Rhythmus und K 0–20 mit Mutatoren sind umgesetzt (10.5). _Ausbau: ein Tages-Seed – die deterministische Simulation macht Runs mit gleichem Seed direkt vergleichbar._
 
 ## 15. Glossar
 
-| Begriff         | Bedeutung                                                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ecke**        | Waffen-Slot des Spieler-Polygons; die Waffe feuert vom Eckpunkt                                                                                      |
-| **Kante**       | Axiom-Slot zwischen zwei Ecken; leuchtet in der Farbe ihres Axioms, leer bleibt sie blass (Charakterfarbe mit 35 % Deckkraft)                        |
-| **Axiom**       | passiver Bonus auf einer Kante, max. Lv 5 (Symmetrie: Lv 2)                                                                                          |
-| **Theorem**     | Evolution einer Waffe: Waffe Lv 8 + passendes Axiom → Q.E.D.-Karte → Theorem im selben Eck-Slot                                                      |
-| **Beweis**      | Achievement mit Freischaltung, z. B. „Quadratur“ → Axiom Symmetrie                                                                                   |
-| **Splitter**    | violette Meta-Währung für das Reißbrett                                                                                                              |
-| **Kristall**    | XP-Pickup mit den XP des besiegten Gegners; Größe und Farbe zeigen den Wert (grün unter 5, türkis ab 5, fast weiß ab 25 XP)                          |
-| **Würfel**      | isometrischer Drahtwürfel: als weißer _Ecken-Würfel_ Auslöser des Morphs (+1 Ecke, +1 Kante), als goldener _Truhen-Würfel_ 3 Upgrades + 15 Splitter  |
-| **Reißbrett**   | Meta-Shop für permanente Stat-Boni, jederzeit voll rückerstattbar („Alles erstatten“)                                                                |
-| **Schale**      | verschachtelte Kontur eines Gegners = eine HP-Stufe; bricht sichtbar in fliegende Kanten                                                             |
-| **Komplexität** | Schwierigkeitsstufe 0–5 (0 = Standard-Beweis), freigeschaltet durch „Teile und herrsche“: je Stufe +25 % Gegner-HP, +10 % Spawn-Rate, +20 % Splitter |
-| **Q.E.D.**      | „quod erat demonstrandum“: die goldene Draft-Karte, die ein Theorem auslöst – und der Beweis für das erste Theorem                                   |
-| **Kern-Punkt**  | die kleine Hitbox (r = 8 px) in der Mitte des Polygons                                                                                               |
-| **Morph**       | der 0,8 s lange Übergang, in dem das Polygon eine Ecke dazugewinnt                                                                                   |
-| **Telegraph**   | Vorwarnung (weißes Aufblinken + Linie, Ring oder Kreis) vor jedem gegnerischen Angriff                                                               |
-| **Director**    | das System, das Spawns, Events, Elites und Boss steuert: Spawn-Rate, Obergrenze und gewichtete Pools je Zeitabschnitt plus ein Skript fester Events  |
+| Begriff         | Bedeutung                                                                                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ecke**        | Waffen-Slot des Spieler-Polygons; die Waffe feuert vom Eckpunkt                                                                                                                                                                            |
+| **Kante**       | Axiom-Slot zwischen zwei Ecken; leuchtet in der Farbe ihres Axioms, leer bleibt sie blass (Charakterfarbe mit 35 % Deckkraft)                                                                                                              |
+| **Axiom**       | passiver Bonus auf einer Kante: Kern-Stufen bis Lv 5 (Symmetrie: Lv 2), danach Überstufen bis Lv 99                                                                                                                                        |
+| **Theorem**     | Evolution einer Waffe: Waffe ab Lv 8 + passendes Axiom → Q.E.D.-Karte → Theorem im selben Eck-Slot, mit dem Level der Waffe                                                                                                                |
+| **Überstufe**   | Stufe über den Kern-Stufen bis Lv 99: bei Waffen und Theoremen +10 % Kern-Schaden je Stufe und alle 5 Stufen ein Meilenstein, bei Axiomen ein kleinerer Zuwachs                                                                            |
+| **Beweis**      | Achievement mit Freischaltung, z. B. „Quadratur“ → Axiom Symmetrie                                                                                                                                                                         |
+| **Splitter**    | violette Meta-Währung für das Reißbrett                                                                                                                                                                                                    |
+| **Kristall**    | XP-Pickup mit den XP des besiegten Gegners; Größe und Farbe zeigen den Wert (grün unter 5, türkis ab 5, fast weiß ab 25 XP)                                                                                                                |
+| **Würfel**      | isometrischer Drahtwürfel: als weißer _Ecken-Würfel_ Auslöser des Morphs (+1 Ecke, +1 Kante), als goldener _Truhen-Würfel_ 3 Upgrades (mit „Kombinatorik“ mehr) + 15 Splitter                                                              |
+| **Reißbrett**   | Meta-Shop für permanente Stat-Boni, jederzeit voll rückerstattbar („Alles erstatten“)                                                                                                                                                      |
+| **Erweiterung** | Reißbrett-Stufe I–III; jeder der Beweise „Grenzwert“, „Konvergenz“ und „Unendlichkeit“ öffnet eine und hebt die Rang-Obergrenzen aller Einträge                                                                                            |
+| **Schale**      | verschachtelte Kontur eines Gegners = eine HP-Stufe; bricht sichtbar in fliegende Kanten                                                                                                                                                   |
+| **Komplexität** | Schwierigkeitsstufe K 0–20 (0 = Standard-Beweis): „Teile und herrsche“ öffnet K 1–5, ein Sieg auf K n die Stufe n + 1; je Stufe Gegner-HP ×1,16, +3 % Gegnerschaden, +10 % Spawn-Rate (bis K 10) und +10 % Splitter, ab K 6 je ein Mutator |
+| **Mutator**     | Regelverschärfung ab Komplexität 6, eine je Stufe, kumulativ (z. B. „Doppelte Elite“, „Wucht“)                                                                                                                                             |
+| **Q.E.D.**      | „quod erat demonstrandum“: die goldene Draft-Karte, die ein Theorem auslöst – und der Beweis für das erste Theorem                                                                                                                         |
+| **Kern-Punkt**  | die kleine Hitbox (r = 8 px) in der Mitte des Polygons                                                                                                                                                                                     |
+| **Morph**       | der 0,8 s lange Übergang, in dem das Polygon eine Ecke dazugewinnt                                                                                                                                                                         |
+| **Telegraph**   | Vorwarnung (weißes Aufblinken + Linie, Ring oder Kreis) vor jedem gegnerischen Angriff                                                                                                                                                     |
+| **Director**    | das System, das Spawns, Events, Elites und Boss steuert: Spawn-Rate, Obergrenze und gewichtete Pools je Zeitabschnitt plus ein Skript fester Events                                                                                        |

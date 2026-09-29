@@ -259,10 +259,13 @@ export class Hud {
     }
     this.toasts.append(box);
     window.setTimeout(() => {
+      // A fixed start height lets `.leaving` fold the box to 0, so the toasts below glide up.
+      box.style.height = `${box.offsetHeight}px`;
+      box.getBoundingClientRect(); // flush, so the transition starts from that height
       box.classList.add('leaving');
       window.setTimeout(() => {
         box.remove();
-      }, 400);
+      }, 600);
     }, TOAST_TIME * 1000);
   }
 }

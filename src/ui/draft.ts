@@ -43,7 +43,8 @@ export class DraftView {
     this.rerollBtn = h('button', 'btn');
     this.banishBtn = h('button', 'btn');
     this.skipBtn = h('button', 'btn');
-    this.hint = h('div', 'draft-hint hidden', S.draft.banishMode);
+    // Always laid out; `.draft.banishing` makes it visible, so the panel never changes height.
+    this.hint = h('div', 'draft-hint', S.draft.banishMode);
     this.rerollBtn.addEventListener('click', () => {
       this.act('reroll');
     });
@@ -77,9 +78,10 @@ export class DraftView {
     return this.banishMode;
   }
 
-  open(session: RunSession): void {
+  /** `resume`: back from the pause, the same cards keep their selection. */
+  open(session: RunSession, resume = false): void {
     this.session = session;
-    this.selected = 0;
+    if (!resume) this.selected = 0;
     this.banishMode = false;
     this.lockUntil = performance.now() + INPUT_LOCK_MS;
     show(this.root, true);
@@ -114,16 +116,22 @@ export class DraftView {
     this.row.replaceChildren(
       ...s.cards.map((card, i) => {
         const look = cardLook(card);
+        // The face lifts when selected; the card itself (the hit area) stays where it is.
         const el = h(
           'div',
           `card${look.gold ? ' gold' : ''}${i === this.selected ? ' selected' : ''}`,
-          h('div', 'card-key', String(i + 1)),
-          h('div', 'card-tag', look.tag),
-          h('div', 'card-icon', shapeIcon(look.icon, look.color, 56)),
-          h('div', 'card-name', look.name),
-          look.badge ? h('div', 'card-badge', look.badge) : null,
-          h('div', 'card-desc', look.desc),
-          look.note ? h('div', 'card-note', look.note) : null,
+          h(
+            'div',
+            'card-face',
+            h('div', 'card-key', String(i + 1)),
+            h('div', 'card-tag', look.tag),
+            h('div', 'card-icon', shapeIcon(look.icon, look.color, 56)),
+            h('div', 'card-name', look.name),
+            // A blank badge keeps its line, so every description starts at the same height.
+            h('div', look.badge ? 'card-badge' : 'card-badge blank', look.badge),
+            h('div', 'card-desc', look.desc),
+            look.note ? h('div', 'card-note', look.note) : null,
+          ),
         );
         el.style.setProperty('--card-color', hex(look.color));
         el.addEventListener('mouseenter', () => {
@@ -135,7 +143,14 @@ export class DraftView {
         return el;
       }),
     );
+    this.updateActions();
+  }
 
+  /** Action buttons and the banish state. Touches no card, so nothing on the table moves. */
+  private updateActions(): void {
+    const s = this.session;
+    if (!s) return;
+    const w = s.world;
     this.rerollBtn.textContent = `${S.draft.reroll} [R] ×${w.rerolls}`;
     this.rerollBtn.disabled = !s.canReroll();
     this.banishBtn.textContent = this.banishMode
@@ -149,7 +164,6 @@ export class DraftView {
     show(this.banishBtn, w.stats.banish > 0);
     show(this.skipBtn, w.stats.skip > 0);
     this.root.classList.toggle('banishing', this.banishMode);
-    show(this.hint, this.banishMode);
   }
 
   private select(i: number, audible = true): void {
@@ -193,7 +207,7 @@ export class DraftView {
       }
       this.banishMode = !this.banishMode;
       this.sound.play('toggle');
-      this.render();
+      this.updateActions();
       return;
     }
     if (!(kind === 'reroll' ? s.reroll() : s.skip())) {
@@ -246,7 +260,7 @@ export class DraftView {
         if (this.banishMode) {
           this.banishMode = false;
           this.sound.play('toggle');
-          this.render();
+          this.updateActions();
         }
         break;
       default:

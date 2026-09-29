@@ -20,6 +20,11 @@ export function clock(seconds: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** A multiplier: ×1,16 · ×2 · ×19,5. */
+export function factor(v: number): string {
+  return `×${v.toLocaleString('de-DE', { maximumFractionDigits: v >= 10 ? 1 : 2 })}`;
+}
+
 /** German number formatting with thin grouping (12.345). */
 export function num(v: number): string {
   return Math.round(v).toLocaleString('de-DE');
@@ -36,7 +41,9 @@ export const S = {
     skill: 'Skill',
     skillReady: 'bereit',
     god: 'GOTTMODUS',
-    position: (x: number, y: number): string => `(${Math.round(x)} | ${Math.round(-y)})`,
+    // Padded for the monospaced label: the digits stay in place while walking.
+    position: (x: number, y: number): string =>
+      `(${String(Math.round(x)).padStart(6)} | ${String(Math.round(-y)).padStart(6)})`,
     boss: 'SIERPINSKI',
     slow: 'Verlangsamt',
   },
@@ -67,12 +74,17 @@ export const S = {
     tagWeapon: 'Waffe · Ecke',
     tagAxiom: 'Axiom · Kante',
     tagTheorem: 'Theorem',
+    tagOverWeapon: 'Überstufe · Ecke',
+    tagOverAxiom: 'Überstufe · Kante',
     tagHeal: 'Heilung',
     tagSplitter: 'Splitter',
     isNew: 'NEU',
     level: (from: number, to: number): string => `Lv ${from} → ${to}`,
     max: 'MAX',
-    theoremFrom: (from: string, axiom: string): string => `Beweis: ${from} (max) + ${axiom}`,
+    theoremFrom: (from: string, axiom: string, level: number): string =>
+      `Beweis: ${from} Lv ${level} + ${axiom}`,
+    overDamage: (pct: number): string => `+${pct} % Schaden`,
+    milestone: (text: string): string => `Meilenstein: ${text}`,
     heal: (n: number): string => `+${n} HP`,
     healDesc: 'Alles ist bewiesen. Heile dich.',
     splitter: (n: number): string => `+${n} Splitter`,
@@ -136,6 +148,7 @@ export const S = {
     discovered: (n: number): string =>
       n === 1 ? '1 neuer Eintrag im Kompendium' : `${n} neue Einträge im Kompendium`,
     notSaved: 'Debug-Run: nichts wurde gespeichert.',
+    complexityOpened: (level: number): string => `Komplexität K ${level} freigeschaltet`,
   },
 
   menu: {
@@ -150,7 +163,7 @@ export const S = {
     theorem: 'Satz.',
     theoremText: 'Jede Form lässt sich vollenden.',
     proof: 'Beweis.',
-    proofText: 'Überlebe fünfzehn Minuten.',
+    proofText: 'Überlebe zwanzig Minuten.',
     controls: 'WASD / Stick bewegen · Leertaste / A Skill · Esc / B zurück',
     recovered:
       'Der Spielstand war nicht lesbar und wurde neu angelegt. Das Original liegt als Sicherung im Browser-Speicher.',
@@ -177,13 +190,18 @@ export const S = {
     lockedBy: (proof: string): string => `Beweise „${proof}“`,
     mode: 'Modus',
     normal: 'Normal',
-    normalDesc: '15 Minuten, dann Sierpinski.',
+    normalDesc: '20 Minuten, dann Sierpinski.',
     endless: 'Endlos',
-    endlessDesc: 'Nach dem Boss geht es weiter, die Dichte wächst unbegrenzt.',
+    endlessDesc: 'Es geht weiter: Die Dichte wächst, alle 10 Minuten kehrt Sierpinski zurück.',
     complexity: 'Komplexität',
     complexityNone: 'Standard-Beweis',
-    complexityDesc: (n: number): string =>
-      `+${n * 25} % Gegner-HP · +${n * 10} % Spawns · +${n * 20} % Splitter`,
+    complexityDesc: (hp: number, damage: number, rate: number, splitter: number): string =>
+      `Gegner-HP ${factor(hp)} · Gegnerschaden ${factor(damage)} · Spawns ${factor(rate)} · Splitter ${factor(splitter)}`,
+    mutatorsFrom: (level: number): string => `Ab K ${level} kommt je Stufe ein Mutator hinzu.`,
+    mutators: (count: number, name: string, desc: string): string =>
+      count === 1 ? `Mutator: ${name} – ${desc}` : `${count} Mutatoren · neu: ${name} – ${desc}`,
+    complexityLocked: (next: number, need: number): string =>
+      `K ${next} öffnet ein Sieg über Sierpinski auf K ${need}.`,
     modeLocked: 'Beweise „Teile und herrsche“',
     start: 'Beweis antreten',
     selected: 'gewählt',
@@ -198,6 +216,10 @@ export const S = {
     spent: (n: string): string => `${n} verbaut`,
     max: 'MAX',
     rank: (r: number, max: number): string => `Rang ${r}/${max}`,
+    /** Every rank of the current tier bought, more come with an Erweiterung. */
+    needTier: 'Erweiterung nötig',
+    tiers: 'Erweiterungen',
+    tierHint: (proofs: string): string => `Jeder dieser Beweise öffnet eine: ${proofs}`,
     refund: 'Alles erstatten',
     refundConfirm: (n: string): string => `${n} Splitter zurück aufs Konto?`,
     refundYes: 'Ja, erstatten',
@@ -220,9 +242,13 @@ export const S = {
     bestKills: 'Meiste Kills',
     theorems: 'Theoreme gesamt',
     bossKills: 'Sierpinski besiegt',
+    bestComplexity: 'Höchste Komplexität',
+    bestWeaponLevel: 'Höchste Waffenstufe',
     splitterEarned: 'Splitter verdient',
     count: (a: number, b: number): string => `${a} / ${b} bewiesen`,
     vertices: (n: number): string => `${n} Ecken`,
+    /** What the last Beweis opens: nothing but itself. */
+    final: 'die Vollendung selbst',
   },
 
   unlock: {
@@ -230,6 +256,8 @@ export const S = {
     axiom: (name: string): string => `Axiom ${name}`,
     char: (name: string): string => `Form ${name}`,
     endless: 'Endlos-Modus & Komplexität',
+    meta: (name: string): string => `Lemma ${name}`,
+    tier: 'Reißbrett-Erweiterung',
   },
 
   codex: {
@@ -248,6 +276,10 @@ export const S = {
     levels: 'Stufen',
     maxLevel: (n: number): string => `bis Lv ${n}`,
     perLevel: 'Pro Stufe',
+    over: 'Überstufe',
+    overFrom: (level: number): string => `ab Lv ${level}`,
+    overDamage: (pct: number): string => `+${pct} % Schaden je Stufe`,
+    milestoneLevels: (a: number, b: number): string => `Lv ${a}, ${b} …`,
     proof: 'Beweis',
     hp: 'HP',
     speed: 'Tempo',
@@ -260,7 +292,8 @@ export const S = {
     startWeapon: 'Startwaffe',
     levelLine: (level: number): string => `Lv ${level}`,
     evolves: (theorem: string, axiom: string): string => `Mit ${axiom} → ${theorem}`,
-    recipe: (weapon: string, axiom: string): string => `${weapon} (max) + ${axiom}`,
+    recipe: (weapon: string, axiom: string, level: number): string =>
+      `${weapon} Lv ${level} + ${axiom}`,
     roles: {
       chase: 'Verfolger',
       dash: 'Sprinter',

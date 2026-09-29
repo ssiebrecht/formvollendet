@@ -14,20 +14,22 @@ export class MenuNav {
     this.buttons = buttons;
     for (const [i, b] of buttons.entries()) {
       b.onmouseenter = () => {
-        this.focus(i);
+        this.focus(i, true, false);
       };
     }
-    this.focus(focus, false);
+    // Opening a panel keeps it at the top, even when the focused button sits further down.
+    this.focus(focus, false, false);
   }
 
-  focus(i: number, audible = true): void {
+  /** `scroll`: keep the button on screen (keyboard and gamepad); the mouse passes false. */
+  focus(i: number, audible = true, scroll = true): void {
     if (this.buttons.length === 0) return;
     const next = Math.max(0, Math.min(this.buttons.length - 1, i));
     if (audible && next !== this.index) this.sound.play('move');
     this.index = next;
     for (const [k, b] of this.buttons.entries()) b.classList.toggle('focused', k === this.index);
     // Tall panels scroll: keep the focused button on screen.
-    this.buttons[this.index]?.scrollIntoView({ block: 'nearest' });
+    if (scroll) this.buttons[this.index]?.scrollIntoView({ block: 'nearest' });
   }
 
   /** Handles navigation and confirm; returns true when the action was consumed. */

@@ -33,7 +33,13 @@ export type ShapeId =
   | 'sphere'
   | 'integral'
   | 'chevrons'
-  | 'inward';
+  | 'inward'
+  // Reißbrett symbols (menus only).
+  | 'tangent'
+  | 'extremum'
+  | 'infinity'
+  | 'dice'
+  | 'stairs';
 
 export type WeaponId =
   | 'spitze'
@@ -89,7 +95,11 @@ export type StatKey =
   | 'reroll'
   | 'banish'
   | 'skip'
-  | 'draftSize';
+  | 'draftSize'
+  /** Extra upgrades per upgrade cube. */
+  | 'cubeRolls'
+  /** Extra levels of the start weapon (up to its core level). */
+  | 'startLevel';
 
 export type Stats = Record<StatKey, number>;
 
@@ -177,6 +187,11 @@ export interface WeaponDef {
   base: WeaponParams;
   /** levels[0] upgrades to level 2. Theorems have none. */
   levels: readonly WeaponLevel[];
+  /**
+   * Überstufe milestones past the core levels, taken in turn every `OVER.milestoneEvery` levels.
+   * Theorems have none; they use their parent's.
+   */
+  over?: readonly WeaponLevel[];
   evolvesWith?: AxiomId;
   evolvesInto?: WeaponId;
   /** Set on theorem weapons: they start from the parent's max-level params plus `theoremOps`. */
@@ -195,8 +210,11 @@ export interface AxiomDef {
   color: number;
   /** Symbol on its edge, so axioms read without colour vision too. */
   icon: ShapeId;
+  /** Last core level: `perLevel` applies up to here. */
   maxLevel: number;
   perLevel: readonly StatMod[];
+  /** Überstufen past `maxLevel` with smaller steps, up to `OVER.maxLevel`; null ends at `maxLevel`. */
+  over: { perLevel: readonly StatMod[]; text: string } | null;
   locked: boolean;
 }
 
@@ -328,29 +346,98 @@ export type ScriptEvent =
 export type PickupKind =
   'heal' | 'sum' | 'bomb' | 'slow' | 'splitter' | 'vertexCube' | 'upgradeCube';
 
+/** Run-wide multipliers a mutator can change; all start at 1 and multiply up. */
+export type MutatorKey =
+  | 'bulletSpeed'
+  | 'eliteCount'
+  | 'formationSize'
+  | 'enemySpeed'
+  | 'eliteHp'
+  | 'healDrops'
+  | 'enemyCap'
+  | 'enemyDamage'
+  | 'bossHp'
+  | 'xp'
+  | 'enemyHp';
+
+export type MutatorEffects = Record<MutatorKey, number>;
+
+/** A handicap that comes with a complexity level and stays for every level above. */
+export interface MutatorDef {
+  id: string;
+  /** Complexity level that introduces it. */
+  level: number;
+  name: string;
+  desc: string;
+  effect: Partial<MutatorEffects>;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Meta
 
+export type MetaId =
+  | 'potenz'
+  | 'dichte'
+  | 'volumen'
+  | 'integral'
+  | 'frequenz'
+  | 'skalierung'
+  | 'impuls'
+  | 'beschleunigung'
+  | 'gravitation'
+  | 'wahrscheinlichkeit'
+  | 'exponent'
+  | 'gier'
+  | 'neuzeichnen'
+  | 'radieren'
+  | 'ueberspringen'
+  | 'zweiterversuch'
+  | 'viertekarte'
+  | 'tangente'
+  | 'extremum'
+  | 'kontinuitaet'
+  | 'kombinatorik'
+  | 'induktion'
+  | 'vielfaches';
+
+/** Reißbrett-Erweiterungen proven so far; each one opens the next `ranks` value of every entry. */
+export type MetaTier = 0 | 1 | 2 | 3;
+
 export interface MetaUpgradeDef {
-  id: string;
+  id: MetaId;
   name: string;
   desc: string;
   stat: StatKey;
   perRank: number;
-  maxRank: number;
+  /** Max rank per tier: without Erweiterung, then with Erweiterung I, II and III. */
+  ranks: readonly [number, number, number, number];
   baseCost: number;
   icon: ShapeId;
+  /** Opened by a Beweis (`meta:<id>`); unlocked entries are there from the start. */
+  locked: boolean;
 }
 
 export type UnlockId =
-  `weapon:${WeaponId}` | `axiom:${AxiomId}` | `char:${CharacterId}` | 'mode:endless';
+  | `weapon:${WeaponId}`
+  | `axiom:${AxiomId}`
+  | `char:${CharacterId}`
+  | `meta:${MetaId}`
+  | `tier:${Exclude<MetaTier, 0>}`
+  | 'mode:endless';
 
 export type ProofCondition =
   | { kind: 'surviveSeconds'; value: number }
   | { kind: 'reachVertices'; value: number }
   | { kind: 'theorems'; value: number }
   | { kind: 'killsInRun'; value: number }
-  | { kind: 'bossKilled' };
+  | { kind: 'bossKilled' }
+  /** Sierpinski defeated this often in one (endless) run. */
+  | { kind: 'bossKillsInRun'; value: number }
+  /** Sierpinski defeated on this complexity level or a higher one. */
+  | { kind: 'complexityCleared'; value: number }
+  | { kind: 'reachLevel'; value: number }
+  /** A weapon or theorem at this level. */
+  | { kind: 'weaponLevel'; value: number };
 
 export interface ProofDef {
   id: string;

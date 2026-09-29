@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CAPS, RUN } from '../src/content/tuning.ts';
-import { SCRIPT, WAVES } from '../src/content/waves.ts';
+import { ENEMIES } from '../src/content/enemies.ts';
+import { CAPS, ENDLESS, RUN } from '../src/content/tuning.ts';
+import { ENDLESS_SCRIPT, SCRIPT, WAVES } from '../src/content/waves.ts';
 import { RunSession } from '../src/sim/run.ts';
 import { bossProgress } from '../src/sim/systems/boss.ts';
-import { damageEnemy } from '../src/sim/systems/combat.ts';
-import { segmentAt } from '../src/sim/systems/director.ts';
+import { damageEnemy, enemyScale } from '../src/sim/systems/combat.ts';
+import { endlessEvent, segmentAt } from '../src/sim/systems/director.ts';
 import type { World } from '../src/sim/world.ts';
 import { config, play } from './helpers.ts';
 
@@ -48,6 +49,19 @@ describe('wave table', () => {
     expect(SCRIPT[SCRIPT.length - 1]!.kind).toBe('boss');
     for (let i = 1; i < SCRIPT.length; i++)
       expect(SCRIPT[i]!.at).toBeGreaterThanOrEqual(SCRIPT[i - 1]!.at);
+    expect(SCRIPT[SCRIPT.length - 1]!.at).toBe(RUN.length);
+  });
+
+  it('repeats the endless lap after the run length, each lap ending with the boss', () => {
+    const n = ENDLESS_SCRIPT.length;
+    for (let i = 1; i < n; i++)
+      expect(ENDLESS_SCRIPT[i]!.at).toBeGreaterThanOrEqual(ENDLESS_SCRIPT[i - 1]!.at);
+    // The hexagon is complete by then: laps only drop upgrade cubes.
+    for (const ev of ENDLESS_SCRIPT) if (ev.kind === 'elite') expect(ev.drop).toBe('upgrade');
+    expect(ENDLESS_SCRIPT[n - 1]).toMatchObject({ kind: 'boss', at: ENDLESS.cycle });
+    expect(endlessEvent(0).at).toBe(RUN.length + ENDLESS_SCRIPT[0]!.at);
+    expect(endlessEvent(n).at).toBe(RUN.length + ENDLESS.cycle + ENDLESS_SCRIPT[0]!.at);
+    expect(endlessEvent(2 * n - 1)).toMatchObject({ at: RUN.length + 2 * ENDLESS.cycle });
   });
 });
 
@@ -133,5 +147,52 @@ describe('simulation', () => {
     expect(bossProgress(w)).toBe(0);
     play(s, 4);
     expect(s.state).toBe('won');
+  });
+
+  it('endless: Sierpinski returns every lap, scaled like the enemies, and every win counts', () => {
+    const s = new RunSession(config(21, { endless: true }));
+    const w = s.world;
+    const d = w.director;
+    w.god = true;
+    // The boss at 20:00 is jumped over (counted), the next one comes at 30:00.
+    s.debugJump(RUN.length + ENDLESS.cycle - 5);
+    expect(d.bossSpawns).toBe(1);
+    expect(d.bossSpawned).toBe(false);
+    play(s, 6);
+    expect(d.bossSpawns).toBe(2);
+    expect(d.bossSpawned && !d.bossDefeated).toBe(true);
+    const head = w.enemies.items.slice(0, w.enemies.count).find((e) => e.boss === 0)!;
+    const at = { time: RUN.length + ENDLESS.cycle, cfg: w.cfg, mut: w.mut } as World;
+    const scale = enemyScale(at, { hp: 1, damage: 1, speed: 1 });
+    expect(head.maxHp).toBeCloseTo(ENEMIES.sierpinski.hp * scale.hp);
+
+    const hit = { dirX: 0, dirY: 0, knock: 0, canCrit: false };
+    for (let round = 0; round < 10 && !d.bossDefeated; round++) {
+      const n = w.enemies.count;
+      for (let j = 0; j < n; j++) {
+        const e = w.enemies.items[j]!;
+        if (!e.alive || e.boss < 0) continue;
+        e.invuln = 0;
+        damageEnemy(w, e, 1e9, 'test', hit);
+      }
+      play(s, 0.1);
+    }
+    expect(d.bossDefeated).toBe(true);
+    expect(w.run.bossKills).toBe(1);
+    play(s, 4);
+    expect(s.state).toBe('playing');
+
+    s.debugJump(ENDLESS.cycle - 10);
+    play(s, 6);
+    expect(d.bossSpawns).toBe(3);
+    expect(d.bossDefeated).toBe(false);
+    let checks = 0;
+    play(s, 20, (x) => {
+      if (x.world.tick % 30 === 0) {
+        assertSane(x.world);
+        checks++;
+      }
+    });
+    expect(checks).toBeGreaterThan(0);
   });
 });

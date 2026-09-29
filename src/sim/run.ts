@@ -1,10 +1,11 @@
 import { ENEMIES } from '../content/enemies.ts';
 import { BOSS, DT, ELITE, ticks, xpForLevel } from '../content/tuning.ts';
+import type { ScriptEvent } from '../content/types.ts';
 import { SCRIPT } from '../content/waves.ts';
 import { openCube } from './build.ts';
 import { applyCard, banishKey, rollDraft, type Card } from './draft.ts';
 import { killEnemy } from './systems/combat.ts';
-import { runScript, segmentAt, updateDirector } from './systems/director.ts';
+import { endlessEvent, runScript, segmentAt, updateDirector } from './systems/director.ts';
 import { rebuildHash, updateEnemies } from './systems/enemies.ts';
 import { updateGems, updatePickups } from './systems/pickups.ts';
 import { type InputState, updatePlayer } from './systems/player.ts';
@@ -213,11 +214,22 @@ export class RunSession {
     const w = this.world;
     const target = w.time + seconds;
     const d = w.director;
+    // Endless: a boss jumped over counts as spawned (its return gets tougher) but never appears.
+    const skip = (ev: ScriptEvent): void => {
+      if (ev.kind === 'elite') for (let i = 0; i < ev.count; i++) openCube(w, ev.drop);
+      if (ev.kind === 'boss') d.bossSpawns++;
+    };
     while (d.scriptIndex < SCRIPT.length) {
       const ev = SCRIPT[d.scriptIndex]!;
-      if (ev.at >= target || ev.kind === 'boss') break;
-      if (ev.kind === 'elite') for (let i = 0; i < ev.count; i++) openCube(w, ev.drop);
+      if (ev.at >= target || (ev.kind === 'boss' && !w.cfg.endless)) break;
+      skip(ev);
       d.scriptIndex++;
+    }
+    while (w.cfg.endless) {
+      const next = endlessEvent(d.endlessIndex);
+      if (next.at >= target) break;
+      skip(next.ev);
+      d.endlessIndex++;
     }
     w.morphTicks = 0;
     w.tick += ticks(seconds);

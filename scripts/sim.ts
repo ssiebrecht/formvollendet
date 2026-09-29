@@ -1,10 +1,12 @@
 /**
  * Headless balance sim: plays full runs with the autopilot and prints how they went.
  *
- *   node scripts/sim.ts [--seeds 10] [--first 1] [--minutes 15] [--char delta] [--complexity 0]
- *                       [--meta] [--jobs 4] [--react 12]
+ *   node scripts/sim.ts [--seeds 10] [--first 1] [--minutes 23] [--char delta] [--complexity 0]
+ *                       [--meta [0-3]] [--endless] [--jobs 4] [--react 12]
  *
- * Per-minute table (averaged over seeds that were still alive), one line per run and a summary.
+ * Per-minute table (averaged over seeds that were still alive), one line per run and a summary
+ * with the Splitter reward the meta layer would book. `--endless` plays the endless mode.
+ * `--meta n` gives every Reißbrett entry its max rank with n Erweiterungen (`--meta` alone: 0).
  * `--jobs` splits the seeds across child processes; the results are identical to a serial run.
  * `--react` is the bot's reaction time in ticks: it only re-plans every n ticks, like a human
  * who needs ~0.2 s to respond (1 = superhuman, re-plans every tick).
@@ -12,19 +14,28 @@
 import { execFile } from 'node:child_process';
 import { parseArgs, promisify } from 'node:util';
 import { META_UPGRADES } from '../src/content/meta.ts';
-import { DT } from '../src/content/tuning.ts';
-import type { CharacterId, StatMod } from '../src/content/types.ts';
+import { DT, RUN } from '../src/content/tuning.ts';
+import type { CharacterId, MetaTier, StatMod } from '../src/content/types.ts';
+import { runReward, summarizeRun } from '../src/meta/summary.ts';
 import { botChoose, botInput } from '../src/sim/bot.ts';
 import { type InputState, RunSession } from '../src/sim/run.ts';
+import { bossProgress } from '../src/sim/systems/boss.ts';
+
+// `--meta` alone means tier 0; parseArgs wants the value spelled out.
+const argv = process.argv.slice(2);
+const metaAt = argv.indexOf('--meta');
+if (metaAt >= 0 && !/^[0-3]$/.test(argv[metaAt + 1] ?? '')) argv.splice(metaAt + 1, 0, '0');
 
 const { values } = parseArgs({
+  args: argv,
   options: {
     seeds: { type: 'string', default: '10' },
     first: { type: 'string', default: '1' },
-    minutes: { type: 'string', default: '15' },
+    minutes: { type: 'string', default: String(RUN.length / 60 + 3) },
     char: { type: 'string', default: 'delta' },
     complexity: { type: 'string', default: '0' },
-    meta: { type: 'boolean', default: false },
+    meta: { type: 'string' },
+    endless: { type: 'boolean', default: false },
     jobs: { type: 'string', default: '1' },
     react: { type: 'string', default: '12' },
     // Internal: a child process prints its results as JSON instead of the report.
@@ -37,12 +48,15 @@ const first = Number(values.first);
 const minutes = Number(values.minutes);
 const character = values.char as CharacterId;
 const complexity = Number(values.complexity);
+const endless = values.endless;
 const jobs = Math.max(1, Math.min(Number(values.jobs), seeds));
 const react = Math.max(1, Number(values.react));
-// --meta: every Reißbrett upgrade at max rank (upper bound of meta power).
-const metaMods: StatMod[] = values.meta
-  ? META_UPGRADES.map((u) => ({ stat: u.stat, value: u.perRank * u.maxRank }))
-  : [];
+// --meta n: every Reißbrett entry at its max rank for tier n (upper bound of meta power).
+const tier = values.meta === undefined ? null : (Number(values.meta) as MetaTier);
+const metaMods: StatMod[] =
+  tier === null
+    ? []
+    : META_UPGRADES.map((u) => ({ stat: u.stat, value: u.perRank * u.ranks[tier] }));
 
 interface Sample {
   level: number;
@@ -54,11 +68,26 @@ interface Sample {
   msPerTick: number;
 }
 
+interface Peak {
+  enemies: number;
+  projectiles: number;
+  bullets: number;
+  gems: number;
+}
+
 interface RunResult {
   seed: number;
   state: string;
   time: number;
   bossKilled: boolean;
+  bossKills: number;
+  maxWeaponLevel: number;
+  /** Splitter the meta layer books for this run. */
+  reward: number;
+  /** Largest pool sizes seen during the run. */
+  peak: Peak;
+  /** Seconds from each boss spawn to its defeat. */
+  fights: number[];
   /** Damage taken per attacker. */
   hurtBy: Record<string, number>;
   killedBy: string;
@@ -75,12 +104,15 @@ function runSeed(seed: number): RunResult {
     unlockedWeapons: ['strahl', 'fraktal'],
     unlockedAxioms: ['symmetrie', 'integral'],
     complexity,
-    endless: false,
+    endless,
   });
   const w = s.world;
   const input: InputState = { moveX: 0, moveY: 0, ability: false };
   const samples: (Sample | null)[] = Array.from({ length: minutes + 1 }, () => null);
   const total = Math.round((minutes * 60) / DT);
+  const peak: Peak = { enemies: 0, projectiles: 0, bullets: 0, gems: 0 };
+  const fights: number[] = [];
+  let fightStart = -1;
   let lastDamage = 0;
   let simMs = 0;
   let simTicks = 0;
@@ -93,6 +125,16 @@ function runSeed(seed: number): RunResult {
     s.step(input);
     simMs += performance.now() - t0;
     simTicks++;
+    peak.enemies = Math.max(peak.enemies, w.enemies.count);
+    peak.projectiles = Math.max(peak.projectiles, w.projectiles.count);
+    peak.bullets = Math.max(peak.bullets, w.bullets.count);
+    peak.gems = Math.max(peak.gems, w.gems.count);
+    const fighting = bossAlive(w);
+    if (fighting && fightStart < 0) fightStart = w.time;
+    if (!fighting && fightStart >= 0) {
+      if (w.director.bossDefeated) fights.push(w.time - fightStart);
+      fightStart = -1;
+    }
     if (w.tick > 0 && w.tick % 3600 === 0) {
       const minute = w.tick / 3600;
       let dealt = 0;
@@ -117,21 +159,32 @@ function runSeed(seed: number): RunResult {
     .filter((x) => x !== null)
     .map((x) => `${x.def.id}${x.level}`)
     .join(' ');
+  const reward = runReward(summarizeRun(w, s.state === 'won')).total;
   const line =
-    `seed ${String(seed).padStart(3)}  ${s.state.padEnd(7)} ${fmtTime(w.time)}  lv ${String(w.player.level).padStart(2)}  ` +
+    `seed ${String(seed).padStart(3)}  ${s.state.padEnd(7)} ${fmtTime(w.time)}  lv ${String(w.player.level).padStart(3)}  ` +
     `kills ${String(w.run.kills).padStart(5)}  form ${w.player.vertices}  theorems ${w.run.theorems.length}  ` +
-    `boss ${w.run.bossKilled ? 'yes' : 'no '}  splitter ${Math.round(w.run.splitter)}  [${weapons}]` +
+    `boss ${w.run.bossKills}${fights.length > 0 ? ` (${fights.map((f) => Math.round(f)).join('/')} s)` : ''}${bossAlive(w) ? ` (${Math.round(bossProgress(w) * 100)} % left)` : ''}  reward ${String(reward).padStart(5)}  [${weapons}]` +
     (w.run.killedBy ? `  † ${w.run.killedBy}` : '');
   return {
     seed,
     state: s.state,
     time: w.time,
     bossKilled: w.run.bossKilled,
+    bossKills: w.run.bossKills,
+    maxWeaponLevel: w.run.maxWeaponLevel,
+    reward,
+    peak,
+    fights,
     hurtBy: Object.fromEntries(w.run.hurtBy),
     killedBy: w.run.killedBy,
     samples,
     line,
   };
+}
+
+/** A boss is on the field and not yet beaten. */
+function bossAlive(w: RunSession['world']): boolean {
+  return w.director.bossSpawned && !w.director.bossDefeated;
 }
 
 function fmtTime(sec: number): string {
@@ -152,7 +205,7 @@ function median(xs: number[]): number {
 
 /** Runs the seeds in `jobs` child processes, each taking a slice of consecutive seeds. */
 async function runParallel(): Promise<RunResult[]> {
-  const base = process.argv.slice(2).filter((a, i, all) => {
+  const base = argv.filter((a, i, all) => {
     const flag = a.startsWith('--') ? a : all[i - 1];
     return flag !== '--jobs' && flag !== '--first' && flag !== '--seeds';
   });
@@ -183,8 +236,9 @@ async function runParallel(): Promise<RunResult[]> {
 }
 
 function report(results: RunResult[]): void {
+  const mode = `${tier === null ? '' : `, meta T${tier}`}${endless ? ', endless' : ''}`;
   console.log(
-    `\nFORMVOLLENDET balance sim — ${results.length} seeds, ${minutes} min, ${character}, complexity ${complexity}${values.meta ? ', max meta' : ''}\n`,
+    `\nFORMVOLLENDET balance sim — ${results.length} seeds, ${minutes} min, ${character}, complexity ${complexity}${mode}\n`,
   );
   console.log('min  alive  level     hp  enemies  kills  form     dps  ms/tick');
   for (let m = 1; m <= minutes; m++) {
@@ -215,14 +269,37 @@ function report(results: RunResult[]): void {
   for (const r of results) console.log(r.line);
 
   const deaths = results.filter((r) => r.state === 'lost').map((r) => r.time);
-  const window = deaths.filter((t) => t >= 480 && t < 720).length;
-  const boss = results.filter((r) => r.time >= 900 || r.bossKilled).length;
+  const window = deaths.filter((t) => t >= 600 && t < 840).length;
+  const boss = results.filter((r) => r.time >= RUN.length || r.bossKilled).length;
   const won = results.filter((r) => r.bossKilled).length;
   console.log(
     `\nlost ${deaths.length}/${results.length}` +
       (deaths.length > 0 ? ` (median ${fmtTime(median(deaths)).trim()})` : '') +
-      ` · died 8–12 min ${window} · before 8 min ${deaths.filter((t) => t < 480).length}` +
+      ` · died 10–14 min ${window} · before 10 min ${deaths.filter((t) => t < 600).length}` +
       ` · reached the boss ${boss} · beat it ${won}`,
+  );
+  const top = (f: (r: RunResult) => number): number => Math.max(...results.map(f));
+  const rewards = results.map((r) => r.reward);
+  console.log(
+    `reward        avg ${Math.round(avg(rewards))} · median ${Math.round(median(rewards))}` +
+      ` · run time median ${fmtTime(median(results.map((r) => r.time))).trim()}` +
+      ` · boss kills ${results.reduce((a, r) => a + r.bossKills, 0)}` +
+      ` · top weapon lv ${top((r) => r.maxWeaponLevel)}`,
+  );
+  const fights = results.flatMap((r) => r.fights);
+  if (fights.length > 0) {
+    const first = results.filter((r) => r.fights.length > 0).map((r) => r.fights[0]!);
+    console.log(
+      `boss fights   ${fights.length} · first median ${Math.round(median(first))} s` +
+        ` (${Math.round(Math.min(...first))}–${Math.round(Math.max(...first))} s)` +
+        (fights.length > first.length
+          ? ` · returns median ${Math.round(median(results.flatMap((r) => r.fights.slice(1))))} s`
+          : ''),
+    );
+  }
+  console.log(
+    `peak pools    enemies ${top((r) => r.peak.enemies)} · projectiles ${top((r) => r.peak.projectiles)}` +
+      ` · bullets ${top((r) => r.peak.bullets)} · gems ${top((r) => r.peak.gems)}`,
   );
 
   const hurt = new Map<string, number>();

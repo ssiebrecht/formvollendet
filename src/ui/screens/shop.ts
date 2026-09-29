@@ -1,14 +1,25 @@
-import { META_UPGRADES } from '../../content/meta.ts';
-import { COLORS } from '../../content/palette.ts';
+import { META_UPGRADES, PROOFS } from '../../content/meta.ts';
 import { S, num } from '../../content/strings.de.ts';
-import type { MetaUpgradeDef, StatKey } from '../../content/types.ts';
-import { buy, canBuy, rankOf, refundAll, totalSpent, upgradeCost } from '../../meta/progression.ts';
+import type { MetaUpgradeDef } from '../../content/types.ts';
+import {
+  buy,
+  canBuy,
+  entryUnlocked,
+  maxRankOf,
+  metaTier,
+  rankOf,
+  refundAll,
+  totalSpent,
+  upgradeCost,
+} from '../../meta/progression.ts';
 import { h, replay, shapeIcon, show } from '../dom.ts';
 import {
   Screen,
   type ScreenHost,
   backButton,
-  pips,
+  metaIconColor,
+  metaTone,
+  proofFor,
   sheet,
   sheetFooter,
   sheetHead,
@@ -16,43 +27,16 @@ import {
   titleBlock,
 } from './screen.ts';
 
-/** Tile colour by what an upgrade does: attack, survival, economy, draft control. */
-const TONES: Partial<Record<StatKey, string>> = {
-  might: 'var(--cyan)',
-  cooldown: 'var(--cyan)',
-  area: 'var(--cyan)',
-  projSpeed: 'var(--cyan)',
-  armor: 'var(--mint)',
-  maxHp: 'var(--mint)',
-  regen: 'var(--mint)',
-  revival: 'var(--mint)',
-  moveSpeed: 'var(--gold)',
-  magnet: 'var(--gold)',
-  luck: 'var(--gold)',
-  growth: 'var(--gold)',
-  greed: 'var(--gold)',
-};
-const ICON_COLORS: Partial<Record<StatKey, number>> = {
-  armor: 0x6dff8a,
-  maxHp: 0x6dff8a,
-  regen: 0x6dff8a,
-  revival: 0x6dff8a,
-  moveSpeed: 0xffd23f,
-  magnet: 0xffd23f,
-  luck: 0xffd23f,
-  growth: 0xffd23f,
-  greed: 0xffd23f,
-  reroll: COLORS.splitter,
-  banish: COLORS.splitter,
-  skip: COLORS.splitter,
-  draftSize: COLORS.splitter,
-};
+/** Cells of every rank bar: the longest entry's last rank, so all bars share one scale. */
+const BAR_CELLS = Math.max(...META_UPGRADES.map((d) => d.ranks[3]));
+const ROMAN = ['I', 'II', 'III'] as const;
 
 interface Tile {
   def: MetaUpgradeDef;
   el: HTMLButtonElement;
   rank: HTMLElement;
-  pips: HTMLElement;
+  /** One cell per rank up to the last Erweiterung. */
+  cells: HTMLElement[];
   cost: HTMLElement;
 }
 
@@ -64,6 +48,7 @@ export class ShopScreen extends Screen {
   private readonly tiles: Tile[] = [];
   private readonly balance: HTMLElement;
   private readonly spent: HTMLElement;
+  private readonly tierBadges: HTMLElement[];
   private readonly refundBtn: HTMLButtonElement;
   private readonly backBtn: HTMLButtonElement;
   private readonly yesBtn: HTMLButtonElement;
@@ -79,18 +64,24 @@ export class ShopScreen extends Screen {
 
     for (const def of META_UPGRADES) {
       const rank = h('span', 'st-rank');
-      const pipsEl = h('span', 'st-pips');
+      const cells: HTMLElement[] = [];
+      // A wider gap marks where the next Erweiterung's ranks begin.
+      const cuts = new Set(def.ranks.slice(0, 3).filter((r) => r > 0 && r < def.ranks[3]));
+      for (let i = 0; i < def.ranks[3]; i++) cells.push(h('i', cuts.has(i) ? 'cut' : null));
+      const bar = h('span', 'st-bar', ...cells);
+      bar.style.setProperty('--cells', String(BAR_CELLS));
       const cost = h('span', 'st-cost');
       const el = h(
         'button',
         'shop-tile cad',
-        h('div', 'st-head', shapeIcon(def.icon, ICON_COLORS[def.stat] ?? 0x3ff0ff, 26), rank),
+        h('div', 'st-head', shapeIcon(def.icon, metaIconColor(def.stat), 26), rank),
         h('div', 'st-name', def.name),
         h('div', 'st-desc', def.desc),
-        h('div', 'st-foot', pipsEl, cost),
+        bar,
+        h('div', 'st-foot', cost),
       );
-      el.style.setProperty('--tone', TONES[def.stat] ?? 'var(--violet)');
-      const tile = { def, el, rank, pips: pipsEl, cost };
+      el.style.setProperty('--tone', metaTone(def.stat));
+      const tile = { def, el, rank, cells, cost };
       el.addEventListener('click', () => {
         this.purchase(tile);
       });
@@ -99,12 +90,22 @@ export class ShopScreen extends Screen {
 
     this.balance = h('div', 'sb-amount');
     this.spent = h('div', 'sb-spent');
+    this.tierBadges = ROMAN.map((r) => h('b', null, r));
+    const tiers = h(
+      'div',
+      'sb-tiers',
+      h('span', 'sb-tiers-label', S.shop.tiers),
+      ...this.tierBadges,
+    );
+    const tierProofs = PROOFS.filter((p) => p.unlocks.some((u) => u.startsWith('tier:')));
+    tiers.title = S.shop.tierHint(tierProofs.map((p) => `„${p.name}“`).join(', '));
     const aside = h(
       'div',
       'shop-balance',
       h('div', 'sb-label', S.shop.balance),
       this.balance,
       this.spent,
+      tiers,
     );
 
     this.backBtn = backButton();
@@ -165,17 +166,35 @@ export class ShopScreen extends Screen {
     const spent = totalSpent(save);
     this.spent.textContent = S.shop.spent(num(spent));
     this.refundBtn.disabled = spent === 0;
-    for (const t of this.tiles) {
-      const rank = rankOf(save, t.def);
-      const maxed = rank >= t.def.maxRank;
-      t.el.classList.toggle('maxed', maxed);
-      t.el.classList.toggle('poor', !maxed && !canBuy(save, t.def));
-      t.rank.textContent = S.shop.rank(rank, t.def.maxRank);
-      t.pips.replaceChildren(pips(rank, t.def.maxRank));
-      t.cost.replaceChildren(
-        maxed ? S.shop.max : splitterAmount(upgradeCost(t.def, rank), 'splitter-amount'),
-      );
-    }
+    const tier = metaTier(save);
+    this.tierBadges.forEach((b, i) => b.classList.toggle('on', i < tier));
+    for (const t of this.tiles) this.fillTile(t);
+  }
+
+  /** Rank, rank bar and price; locked entries name their Beweis instead. */
+  private fillTile(t: Tile): void {
+    const save = this.host.meta.save;
+    const rank = rankOf(save, t.def);
+    const open = entryUnlocked(save, t.def);
+    const max = maxRankOf(save, t.def);
+    const maxed = rank >= t.def.ranks[3];
+    const capped = open && !maxed && rank >= max;
+    t.el.classList.toggle('locked', !open);
+    t.el.classList.toggle('maxed', maxed);
+    t.el.classList.toggle('capped', capped);
+    t.el.classList.toggle('poor', open && rank < max && !canBuy(save, t.def));
+    t.rank.textContent = open ? S.shop.rank(rank, max) : S.select.locked;
+    t.cells.forEach((c, i) => {
+      c.classList.toggle('own', i < rank);
+      c.classList.toggle('open', i >= rank && i < max);
+      c.classList.toggle('shut', i >= max && i >= rank);
+    });
+    if (!open) {
+      const proof = proofFor(`meta:${t.def.id}`);
+      t.cost.replaceChildren(proof ? S.select.lockedBy(proof.name) : S.select.locked);
+    } else if (maxed) t.cost.replaceChildren(S.shop.max);
+    else if (capped) t.cost.replaceChildren(S.shop.needTier);
+    else t.cost.replaceChildren(splitterAmount(upgradeCost(t.def, rank), 'splitter-amount'));
   }
 
   private purchase(t: Tile): void {

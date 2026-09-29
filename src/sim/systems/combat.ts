@@ -1,14 +1,18 @@
 import { COLORS } from '../../content/palette.ts';
 import {
-  COMPLEXITY,
+  complexityDamage,
+  complexityHp,
   DROPS,
   ELITE,
+  ENDLESS,
   ENEMY,
   GEMS,
   PICKUPS,
   PLAYER,
+  RUN,
   SCALING,
   ticks,
+  timeHp,
 } from '../../content/tuning.ts';
 import type { PickupKind } from '../../content/types.ts';
 import type { Enemy, Gem, Pickup, World } from '../world.ts';
@@ -152,7 +156,7 @@ function rollDrops(w: World, x: number, y: number): void {
   const luck = w.stats.luck;
   let r = w.rng.next();
   for (const [kind, chance] of DROP_TABLE) {
-    r -= chance * luck;
+    r -= chance * luck * (kind === 'heal' ? w.mut.healDrops : 1);
     if (r < 0) {
       spawnPickup(w, kind, x, y, 0);
       break;
@@ -276,20 +280,27 @@ export function healPlayer(w: World, amount: number): void {
   if (p.hp > before + 0.5) w.events.push({ type: 'playerHeal', amount: p.hp - before });
 }
 
+/** Endless mode past the run length: enemy damage keeps growing until nobody survives. */
+function endlessDamage(w: World): number {
+  if (!w.cfg.endless || w.time <= RUN.length) return 1;
+  return ENDLESS.damageGrowth ** ((w.time - RUN.length) / 60);
+}
+
 export interface EnemyScale {
   hp: number;
   damage: number;
   speed: number;
 }
 
-/** Scaling factors for enemies spawned at the current time (and complexity level). */
+/** Scaling factors for enemies spawned at the current time (complexity level and mutators). */
 export function enemyScale(w: World, out: EnemyScale): EnemyScale {
   const minutes = w.time / 60;
-  out.hp =
-    (1 + minutes * SCALING.hpPerMinute) *
-    SCALING.hpGrowth ** minutes *
-    (1 + w.cfg.complexity * COMPLEXITY.hpPerLevel);
-  out.damage = 1 + minutes * SCALING.damagePerMinute;
-  out.speed = 1 + minutes * SCALING.speedPerMinute;
+  out.hp = timeHp(minutes) * complexityHp(w.cfg.complexity) * w.mut.enemyHp;
+  out.damage =
+    (1 + minutes * SCALING.damagePerMinute) *
+    endlessDamage(w) *
+    complexityDamage(w.cfg.complexity) *
+    w.mut.enemyDamage;
+  out.speed = (1 + minutes * SCALING.speedPerMinute) * w.mut.enemySpeed;
   return out;
 }

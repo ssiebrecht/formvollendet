@@ -135,7 +135,7 @@ export class WorldView {
     this.drawGems(w, a, time);
     this.drawPickups(w, a, time, cam);
     this.drawEnemies(w, a, time, s);
-    this.drawBosses(a, time, s);
+    this.drawBosses(a, time, s, cam);
     this.drawWeapons(w, a, time, s);
     this.drawProjectiles(w, a, s);
     this.drawBullets(w, a);
@@ -216,7 +216,7 @@ export class WorldView {
     L.end();
   }
 
-  /** Arrow at the screen edge pointing at an off-screen cube. */
+  /** Arrow at the screen edge pointing at an off-screen cube or boss piece. */
   private drawIndicator(cam: Camera, wx: number, wy: number, color: number, time: number): void {
     const cx = cam.screenW / 2;
     const cy = cam.screenH / 2;
@@ -336,13 +336,16 @@ export class WorldView {
 
   // ------------------------------------------------------------------------------- boss
 
-  private drawBosses(a: number, time: number, s: ViewSettings): void {
+  private drawBosses(a: number, time: number, s: ViewSettings, cam: Camera): void {
     const g = this.boss;
     for (const e of this.bossList) {
       const x = e.px + (e.x - e.px) * a;
       const y = e.py + (e.y - e.py) * a;
       const R = bossRadius(e);
-      if (!this.visible(x, y, R * 1.3)) continue;
+      if (!this.visible(x, y, R * 1.3)) {
+        this.drawIndicator(cam, x, y, COLORS.boss, time);
+        continue;
+      }
       // Fresh pieces blink while invulnerable and hits flash white; with flash reduction the
       // pieces are dimmed instead and a hit thickens the edges.
       const soft = s.flashReduction;

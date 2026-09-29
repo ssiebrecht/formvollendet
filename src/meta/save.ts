@@ -5,7 +5,7 @@ import { META_UPGRADES, PROOFS } from '../content/meta.ts';
 import { COMPLEXITY } from '../content/tuning.ts';
 import type { CharacterId } from '../content/types.ts';
 import { WEAPONS } from '../content/weapons.ts';
-import { spentOn } from './progression.ts';
+import { maxComplexity, maxRankOf, spentOn } from './progression.ts';
 
 /** Minimal key-value store: localStorage in the browser, a Map in tests. */
 export interface StorageLike {
@@ -31,6 +31,12 @@ export interface LifetimeStats {
   bestTheorems: number;
   theorems: number;
   bossKills: number;
+  /** Most Sierpinski wins in a single (endless) run. */
+  bestBossKills: number;
+  /** Highest weapon or theorem level in a run. */
+  bestWeaponLevel: number;
+  /** Highest complexity level Sierpinski fell on; −1 before his first defeat. */
+  bestComplexity: number;
   splitterEarned: number;
 }
 
@@ -74,12 +80,15 @@ const STAT_KEYS = [
   'bestTheorems',
   'theorems',
   'bossKills',
+  'bestBossKills',
+  'bestWeaponLevel',
   'splitterEarned',
 ] as const satisfies readonly (keyof LifetimeStats)[];
 
 export function freshSave(): SaveData {
   const stats = {} as LifetimeStats;
   for (const k of STAT_KEYS) stats[k] = 0;
+  stats.bestComplexity = -1;
   return {
     version: SAVE_VERSION,
     splitter: 0,
@@ -97,6 +106,15 @@ function isRecord(v: unknown): v is Raw {
 
 function count(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/** Stored ranks above this are treated as this (keeps the refund loop short on broken data). */
+const RANK_LIMIT = 100;
+
+/** A complexity level, or −1 for none. */
+function levelOrNone(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return -1;
+  return Math.max(-1, Math.min(COMPLEXITY.max, Math.floor(v)));
 }
 
 /** Known ids only, each once, in stored order. */
@@ -126,21 +144,22 @@ export function migrate(data: Raw, migrations = MIGRATIONS, target = SAVE_VERSIO
 
 /**
  * Turns migrated data into a valid save: wrong types fall back to defaults, unknown ids are
- * dropped, ranks above a (lowered) max rank are refunded.
+ * dropped, ranks the proven Beweise do not open (or above a lowered max rank) are refunded.
  */
 export function sanitize(d: Raw): SaveData {
   const s = freshSave();
   s.splitter = Math.floor(count(d.splitter));
+  // Beweise first: they decide which entries and Erweiterungen are open.
+  s.proofs = idList(d.proofs, (id) => PROOFS.some((p) => p.id === id));
 
   const ranks = isRecord(d.ranks) ? d.ranks : {};
   for (const def of META_UPGRADES) {
-    const stored = Math.floor(count(ranks[def.id]));
-    const rank = Math.min(stored, def.maxRank);
+    const stored = Math.min(RANK_LIMIT, Math.floor(count(ranks[def.id])));
+    const rank = Math.min(stored, maxRankOf(s, def));
     if (rank > 0) s.ranks[def.id] = rank;
     if (stored > rank) s.splitter += spentOn(def, stored) - spentOn(def, rank);
   }
 
-  s.proofs = idList(d.proofs, (id) => PROOFS.some((p) => p.id === id));
   const seen = isRecord(d.seen) ? d.seen : {};
   s.seen.weapons = idList(seen.weapons, (id) => Object.hasOwn(WEAPONS, id));
   s.seen.axioms = idList(seen.axioms, (id) => Object.hasOwn(AXIOMS, id));
@@ -148,13 +167,14 @@ export function sanitize(d: Raw): SaveData {
 
   const stats = isRecord(d.stats) ? d.stats : {};
   for (const k of STAT_KEYS) s.stats[k] = count(stats[k]);
+  s.stats.bestComplexity = levelOrNone(stats.bestComplexity);
 
   const last = isRecord(d.last) ? d.last : {};
   const ch = last.character;
   if (typeof ch === 'string' && Object.hasOwn(CHARACTERS, ch)) {
     s.last.character = ch as CharacterId;
   }
-  s.last.complexity = Math.min(COMPLEXITY.max, Math.floor(count(last.complexity)));
+  s.last.complexity = Math.min(maxComplexity(s), Math.floor(count(last.complexity)));
   s.last.endless = last.endless === true;
   return s;
 }

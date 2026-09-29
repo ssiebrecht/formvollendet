@@ -15,6 +15,14 @@ export function proofMet(c: ProofCondition, r: RunSummary): boolean {
       return r.kills >= c.value;
     case 'bossKilled':
       return r.bossKilled;
+    case 'bossKillsInRun':
+      return r.bossKills >= c.value;
+    case 'complexityCleared':
+      return r.bossKilled && r.complexity >= c.value;
+    case 'reachLevel':
+      return r.level >= c.value;
+    case 'weaponLevel':
+      return r.maxWeaponLevel >= c.value;
   }
 }
 
@@ -45,5 +53,13 @@ export function proofProgress(
       return { value: Math.min(s.bestKills, c.value), target: c.value };
     case 'bossKilled':
       return { value: Math.min(s.bossKills, 1), target: 1 };
+    case 'bossKillsInRun':
+      return { value: Math.min(s.bestBossKills, c.value), target: c.value };
+    case 'complexityCleared':
+      return { value: Math.max(0, Math.min(s.bestComplexity, c.value)), target: c.value };
+    case 'reachLevel':
+      return { value: Math.min(s.bestLevel, c.value), target: c.value };
+    case 'weaponLevel':
+      return { value: Math.min(s.bestWeaponLevel, c.value), target: c.value };
   }
 }

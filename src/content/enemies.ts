@@ -134,7 +134,7 @@ const LIST: EnemyDef[] = [
     shape: 'triangle',
     color: COLORS.boss,
     radius: 150,
-    hp: 4200,
+    hp: 1000,
     speed: 38,
     damage: 20,
     xp: 400,

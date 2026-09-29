@@ -1,11 +1,18 @@
 import { ABILITIES, CHARACTER_LIST } from '../../content/characters.ts';
+import { MUTATORS, mutatorsAt } from '../../content/mutators.ts';
 import { hex } from '../../content/palette.ts';
 import { S, num } from '../../content/strings.de.ts';
-import { COMPLEXITY } from '../../content/tuning.ts';
+import {
+  COMPLEXITY,
+  complexityDamage,
+  complexityHp,
+  complexityRate,
+  complexitySplitter,
+} from '../../content/tuning.ts';
 import type { CharacterDef, CharacterId } from '../../content/types.ts';
 import { WEAPONS } from '../../content/weapons.ts';
 import type { Action } from '../../app/input.ts';
-import { endlessUnlocked, isCharacterUnlocked } from '../../meta/progression.ts';
+import { endlessUnlocked, isCharacterUnlocked, maxComplexity } from '../../meta/progression.ts';
 import { baseStats } from '../../sim/stats.ts';
 import { h, replay, shapeIcon } from '../dom.ts';
 import {
@@ -14,7 +21,6 @@ import {
   backButton,
   formPortrait,
   gauge,
-  pips,
   proofFor,
   sheet,
   sheetFooter,
@@ -53,15 +59,20 @@ export class SelectScreen extends Screen {
   private endless = false;
   private complexity = 0;
   private endlessOpen = false;
+  /** Highest complexity level the save has opened. */
+  private maxLevel = 0;
+  /** Set after pushing past the last open level: explain how to open the next one. */
+  private hint = false;
 
   private readonly cards = new Map<CharacterId, HTMLButtonElement>();
   private readonly normalBtn: HTMLButtonElement;
   private readonly endlessBtn: HTMLButtonElement;
   private readonly endlessDesc: HTMLElement;
   private readonly stepper: HTMLElement;
-  private readonly stepPips: HTMLElement;
+  private readonly ticks: HTMLElement[] = [];
   private readonly stepValue: HTMLElement;
-  private readonly stepDesc: HTMLElement;
+  private readonly descValues: HTMLElement;
+  private readonly descMutators: HTMLElement;
   private readonly startBtn: HTMLButtonElement;
   private readonly backBtn: HTMLButtonElement;
 
@@ -106,19 +117,34 @@ export class SelectScreen extends Screen {
       e.stopPropagation();
       this.adjust(1);
     });
-    this.stepPips = h('span', 'step-pips');
+    const ruler = h('span', 'k-ruler');
+    for (let k = 1; k <= COMPLEXITY.max; k++) {
+      const tick = h('i', k % 5 === 0 ? 'major' : null);
+      tick.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setLevel(k);
+      });
+      this.ticks.push(tick);
+      ruler.append(tick);
+    }
+    for (let k = 5; k <= COMPLEXITY.max; k += 5) {
+      const label = h('b', null, String(k));
+      label.style.gridColumn = String(k);
+      ruler.append(label);
+    }
     this.stepValue = h('span', 'step-value');
-    this.stepDesc = h('span', 'step-desc');
+    this.descValues = h('span', 'step-line');
+    this.descMutators = h('span', 'step-line');
     this.stepper = h(
       'div',
       'stepper cad',
       h('span', 'param-label', S.select.complexity),
-      h('div', 'step-ctrl', dec, this.stepPips, inc, this.stepValue),
-      this.stepDesc,
+      h('div', 'step-ctrl', dec, ruler, inc, this.stepValue),
+      h('span', 'step-desc', this.descValues, this.descMutators),
     );
-    // Confirm (or a click on the row) cycles through the levels.
+    // Confirm (or a click on the row) cycles through the open levels.
     this.stepper.addEventListener('click', () => {
-      this.adjust(this.complexity >= COMPLEXITY.max ? -COMPLEXITY.max : 1);
+      this.adjust(this.complexity >= this.maxLevel ? -this.maxLevel : 1);
     });
     this.nav.onAdjust = (el, dir) => {
       if (el !== this.stepper) return false;
@@ -139,7 +165,7 @@ export class SelectScreen extends Screen {
       sheet(
         'select-sheet',
         sheetHead('select', S.select.title, S.select.subtitle),
-        h('div', 'select-cards', ...this.cards.values()),
+        h('div', 'select-cards sheet-scroll', ...this.cards.values()),
         h(
           'div',
           'select-params',
@@ -175,13 +201,17 @@ export class SelectScreen extends Screen {
     this.endlessOpen = endlessUnlocked(save);
     this.char = isCharacterUnlocked(save, save.last.character) ? save.last.character : 'delta';
     this.endless = this.endlessOpen && save.last.endless;
-    this.complexity = this.endlessOpen ? save.last.complexity : 0;
+    this.maxLevel = maxComplexity(save);
+    this.complexity = Math.min(save.last.complexity, this.maxLevel);
+    this.hint = false;
     for (const [i, c] of CHARACTER_LIST.entries()) {
       this.fillCard(this.cards.get(c.id)!, c, i, isCharacterUnlocked(save, c.id));
     }
     this.endlessBtn.classList.toggle('locked', !this.endlessOpen);
     this.endlessDesc.textContent = this.endlessOpen ? S.select.endlessDesc : S.select.modeLocked;
     this.stepper.classList.toggle('locked', !this.endlessOpen);
+    for (const [i, tick] of this.ticks.entries())
+      tick.classList.toggle('locked', i >= this.maxLevel);
     this.refresh();
     const items = [
       ...this.cards.values(),
@@ -269,13 +299,39 @@ export class SelectScreen extends Screen {
     for (const [id, card] of this.cards) card.classList.toggle('selected', id === this.char);
     this.normalBtn.classList.toggle('selected', !this.endless);
     this.endlessBtn.classList.toggle('selected', this.endless);
-    this.stepPips.replaceChildren(pips(this.complexity, COMPLEXITY.max));
+    for (const [i, tick] of this.ticks.entries()) tick.classList.toggle('on', i < this.complexity);
     this.stepValue.textContent = S.select.level(this.complexity);
-    this.stepDesc.textContent = !this.endlessOpen
-      ? S.select.modeLocked
-      : this.complexity === 0
+    this.fillDesc();
+  }
+
+  /** Two fixed lines: what the level does to the numbers, then its mutators or the next unlock. */
+  private fillDesc(): void {
+    const k = this.complexity;
+    const muts = mutatorsAt(k);
+    this.descMutators.title = muts.map((m) => `K ${m.level} · ${m.name}: ${m.desc}`).join('\n');
+    if (!this.endlessOpen) {
+      this.descValues.textContent = S.select.modeLocked;
+      this.descMutators.textContent = '';
+      return;
+    }
+    this.descValues.textContent =
+      k === 0
         ? S.select.complexityNone
-        : S.select.complexityDesc(this.complexity);
+        : S.select.complexityDesc(
+            complexityHp(k),
+            complexityDamage(k),
+            complexityRate(k),
+            complexitySplitter(k),
+          );
+    const newest = muts[muts.length - 1];
+    const more = this.maxLevel < COMPLEXITY.max;
+    if (more && (this.hint || (!newest && k === this.maxLevel))) {
+      this.descMutators.textContent = S.select.complexityLocked(this.maxLevel + 1, this.maxLevel);
+    } else if (newest) {
+      this.descMutators.textContent = S.select.mutators(muts.length, newest.name, newest.desc);
+    } else {
+      this.descMutators.textContent = S.select.mutatorsFrom(MUTATORS[0]!.level);
+    }
   }
 
   private deny(el: HTMLElement): void {
@@ -306,16 +362,23 @@ export class SelectScreen extends Screen {
   }
 
   private adjust(dir: number): void {
+    this.setLevel(this.complexity + dir);
+  }
+
+  private setLevel(level: number): void {
     if (!this.endlessOpen) {
       this.deny(this.stepper);
       return;
     }
-    const next = Math.max(0, Math.min(COMPLEXITY.max, this.complexity + dir));
-    if (next === this.complexity) {
+    if (level > this.maxLevel || level < 0 || level === this.complexity) {
+      // Reaching for a locked level explains how to open it.
+      this.hint = level > this.maxLevel;
       this.deny(this.stepper);
+      this.fillDesc();
       return;
     }
-    this.complexity = next;
+    this.complexity = level;
+    this.hint = false;
     this.host.sound.play('toggle');
     this.refresh();
   }

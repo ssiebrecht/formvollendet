@@ -1,7 +1,7 @@
-import { DRAFT, PLAYER, ticks } from '../content/tuning.ts';
+import { DRAFT, OVER, PLAYER, ticks } from '../content/tuning.ts';
 import type { AxiomDef, CubeKind, WeaponDef } from '../content/types.ts';
 import { WEAPONS } from '../content/weapons.ts';
-import { maxLevel } from './stats.ts';
+import { axiomDone, coreLevel } from './stats.ts';
 import type { CubeReward } from './events.ts';
 import { healPlayer } from './systems/combat.ts';
 import type { Player, World } from './world.ts';
@@ -38,13 +38,12 @@ export function addWeapon(w: World, def: WeaponDef): number {
   return i;
 }
 
-export function upgradeWeapon(w: World, slot: number): string {
+export function upgradeWeapon(w: World, slot: number): void {
   const s = w.player.weapons[slot];
-  if (!s || s.level >= maxLevel(s.def)) return '';
-  const text = s.def.levels[s.level - 1]?.text ?? '';
+  if (!s || s.level >= OVER.maxLevel) return;
   s.level++;
+  w.run.maxWeaponLevel = Math.max(w.run.maxWeaponLevel, s.level);
   recomputeStats(w);
-  return text;
 }
 
 export function addAxiom(w: World, def: AxiomDef): number {
@@ -58,19 +57,19 @@ export function addAxiom(w: World, def: AxiomDef): number {
 
 export function upgradeAxiom(w: World, slot: number): void {
   const a = w.player.axioms[slot];
-  if (!a || a.level >= a.def.maxLevel) return;
+  if (!a || axiomDone(w.stats, a)) return;
   a.level++;
   recomputeStats(w);
 }
 
-/** Slot indices whose weapon is maxed and whose proof axiom is owned (any level). */
+/** Slot indices whose weapon reached its core level and whose proof axiom is owned (any level). */
 export function theoremSlots(w: World): number[] {
   const p = w.player;
   const out: number[] = [];
   for (let i = 0; i < p.vertices; i++) {
     const s = p.weapons[i];
     if (!s?.def.evolvesInto || !s.def.evolvesWith) continue;
-    if (s.level < maxLevel(s.def)) continue;
+    if (s.level < coreLevel(s.def)) continue;
     if (axiomLevel(p, s.def.evolvesWith) <= 0) continue;
     if (w.banished.has(`weapon:${s.def.evolvesInto}`)) continue;
     out.push(i);
@@ -78,13 +77,12 @@ export function theoremSlots(w: World): number[] {
   return out;
 }
 
-/** Q.E.D.: replaces the weapon in its vertex with its theorem. */
+/** Q.E.D.: replaces the weapon in its vertex with its theorem, which keeps the level. */
 export function evolveWeapon(w: World, slot: number): void {
   const s = w.player.weapons[slot];
   if (!s?.def.evolvesInto) return;
   const def = WEAPONS[s.def.evolvesInto];
   s.def = def;
-  s.level = 1;
   s.cd = 0;
   s.active = 0;
   s.beamCount = 0;
@@ -112,7 +110,7 @@ export function addVertex(w: World): boolean {
 export function openCube(w: World, kind: CubeKind): 'morph' | 'upgrade' {
   if (kind === 'vertex' && addVertex(w)) return 'morph';
   const rewards: CubeReward[] = [];
-  let rolls: number = DRAFT.upgradeCubeRolls;
+  let rolls = DRAFT.upgradeCubeRolls + w.stats.cubeRolls;
   const theorem = theoremSlots(w)[0];
   if (theorem !== undefined) {
     evolveWeapon(w, theorem);
@@ -139,9 +137,9 @@ function randomUpgrade(w: World): CubeReward | null {
   const options: { weapon: boolean; slot: number }[] = [];
   for (let i = 0; i < p.vertices; i++) {
     const s = p.weapons[i];
-    if (s && s.level < maxLevel(s.def)) options.push({ weapon: true, slot: i });
+    if (s && s.level < OVER.maxLevel) options.push({ weapon: true, slot: i });
     const a = p.axioms[i];
-    if (a && a.level < a.def.maxLevel) options.push({ weapon: false, slot: i });
+    if (a && !axiomDone(w.stats, a)) options.push({ weapon: false, slot: i });
   }
   if (options.length === 0) return null;
   const o = w.rng.pick(options);

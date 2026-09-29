@@ -1,10 +1,12 @@
 import { AXIOMS } from '../content/axioms.ts';
 import { COLORS } from '../content/palette.ts';
 import { S } from '../content/strings.de.ts';
+import { OVER } from '../content/tuning.ts';
 import type { ShapeId } from '../content/types.ts';
 import { WEAPONS } from '../content/weapons.ts';
 import type { Card } from '../sim/draft.ts';
 import type { CubeReward } from '../sim/events.ts';
+import { coreLevel, isOverLevel, milestoneAt } from '../sim/stats.ts';
 
 export interface CardLook {
   tag: string;
@@ -36,13 +38,16 @@ export function cardLook(card: Card): CardLook {
     }
     case 'upgradeWeapon': {
       const d = WEAPONS[card.weapon];
-      const text = d.levels[card.level - 2]?.text ?? '';
+      const over = isOverLevel(d, card.level);
+      const milestone = milestoneAt(d, card.level);
       return {
-        tag: S.draft.tagWeapon,
+        tag: over ? S.draft.tagOverWeapon : S.draft.tagWeapon,
         name: d.name,
         badge: S.draft.level(card.level - 1, card.level),
-        desc: text,
-        note: '',
+        desc: over
+          ? S.draft.overDamage(Math.round(OVER.damagePerLevel * 100))
+          : (d.levels[card.level - 2]?.text ?? ''),
+        note: milestone ? S.draft.milestone(milestone.text) : '',
         icon: d.icon,
         color: d.color,
         gold: false,
@@ -63,11 +68,12 @@ export function cardLook(card: Card): CardLook {
     }
     case 'upgradeAxiom': {
       const d = AXIOMS[card.axiom];
+      const over = card.level > d.maxLevel && d.over !== null;
       return {
-        tag: S.draft.tagAxiom,
+        tag: over ? S.draft.tagOverAxiom : S.draft.tagAxiom,
         name: d.name,
         badge: S.draft.level(card.level - 1, card.level),
-        desc: d.desc,
+        desc: over ? d.over!.text : d.desc,
         note: '',
         icon: d.icon,
         color: d.color,
@@ -83,7 +89,7 @@ export function cardLook(card: Card): CardLook {
         name: d.name,
         badge: 'Q.E.D.',
         desc: d.desc,
-        note: S.draft.theoremFrom(from.name, axiom),
+        note: S.draft.theoremFrom(from.name, axiom, coreLevel(from)),
         icon: d.icon,
         color: COLORS.crit,
         gold: true,

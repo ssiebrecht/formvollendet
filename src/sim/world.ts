@@ -1,4 +1,5 @@
 import { ABILITIES, CHARACTERS } from '../content/characters.ts';
+import { mutatorEffects } from '../content/mutators.ts';
 import { CAPS, PLAYER } from '../content/tuning.ts';
 import type {
   AbilityDef,
@@ -8,6 +9,7 @@ import type {
   CharacterId,
   CubeKind,
   EnemyDef,
+  MutatorEffects,
   PickupKind,
   ShapeId,
   StatMod,
@@ -23,7 +25,7 @@ import { vertexAngle } from './math/geometry.ts';
 import { Rng } from './math/rng.ts';
 import { Pool, type Poolable } from './pool.ts';
 import { SpatialHash } from './spatialHash.ts';
-import { computeStats, effectiveParams } from './stats.ts';
+import { computeStats, coreLevel, effectiveParams } from './stats.ts';
 
 /** lastHit slots: 0..5 weapon vertices, 6 = signature ability, 7 = misc (bomb, explosions). */
 export const HIT_SLOTS = 8;
@@ -247,7 +249,11 @@ export interface RunStats {
   /** Attacker of the fatal hit; empty while alive. */
   killedBy: string;
   bossKilled: boolean;
+  /** Boss fights won this run (endless mode brings it back). */
+  bossKills: number;
   elitesKilled: number;
+  /** Highest level any weapon or theorem reached. */
+  maxWeaponLevel: number;
   weaponsSeen: Set<WeaponId>;
   axiomsSeen: Set<AxiomId>;
   enemiesSeen: Set<string>;
@@ -256,7 +262,13 @@ export interface RunStats {
 export interface Director {
   acc: number;
   scriptIndex: number;
+  /** Endless mode: events of `ENDLESS_SCRIPT` run so far, over all laps. */
+  endlessIndex: number;
+  /** Bosses spawned (or skipped by a debug jump) this run; each return is tougher. */
+  bossSpawns: number;
+  /** A boss has appeared; stays set after the fight. */
   bossSpawned: boolean;
+  /** The current boss fight is over; cleared again when the boss returns. */
   bossDefeated: boolean;
   bossMaxHp: number;
   /** This tick's population cap; spawners respect it too, so hives cannot flood the field. */
@@ -284,6 +296,8 @@ export interface World {
   /** Half extents of the visible area in world units (spawns happen just outside). */
   view: { halfW: number; halfH: number };
   director: Director;
+  /** Product of the mutators that come with the run's complexity level. */
+  mut: MutatorEffects;
   /** Ticks of the global "÷" slow. */
   enemySlowTicks: number;
   run: RunStats;
@@ -518,11 +532,14 @@ export function createWorld(cfg: RunConfig): World {
     director: {
       acc: 0,
       scriptIndex: 0,
+      endlessIndex: 0,
+      bossSpawns: 0,
       bossSpawned: false,
       bossDefeated: false,
       bossMaxHp: 0,
       cap: 0,
     },
+    mut: mutatorEffects(cfg.complexity),
     enemySlowTicks: 0,
     run: {
       kills: 0,
@@ -534,7 +551,9 @@ export function createWorld(cfg: RunConfig): World {
       hurtBy: new Map(),
       killedBy: '',
       bossKilled: false,
+      bossKills: 0,
       elitesKilled: 0,
+      maxWeaponLevel: 1,
       weaponsSeen: new Set(),
       axiomsSeen: new Set(),
       enemiesSeen: new Set(),
@@ -549,8 +568,11 @@ export function createWorld(cfg: RunConfig): World {
     morphTicks: 0,
     god: false,
   };
+  // Induktion (Reißbrett) starts the weapon a few levels up, never past its core.
   const start = WEAPONS[char.startWeapon];
-  player.weapons[0] = createWeaponSlot(start, 1, stats);
+  const level = Math.min(coreLevel(start), 1 + stats.startLevel);
+  player.weapons[0] = createWeaponSlot(start, level, stats);
+  w.run.maxWeaponLevel = level;
   w.run.weaponsSeen.add(start.id);
   return w;
 }

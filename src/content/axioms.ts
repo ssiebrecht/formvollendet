@@ -9,6 +9,7 @@ const LIST: AxiomDef[] = [
     icon: 'caret',
     maxLevel: 5,
     perLevel: [{ stat: 'might', value: 0.1 }],
+    over: { perLevel: [{ stat: 'might', value: 0.02 }], text: '+2 % Schaden' },
     locked: false,
   },
   {
@@ -19,6 +20,7 @@ const LIST: AxiomDef[] = [
     icon: 'clock',
     maxLevel: 5,
     perLevel: [{ stat: 'cooldown', value: -0.08 }],
+    over: { perLevel: [{ stat: 'cooldown', value: -0.01 }], text: '−1 % Abklingzeit' },
     locked: false,
   },
   {
@@ -29,6 +31,7 @@ const LIST: AxiomDef[] = [
     icon: 'nested',
     maxLevel: 5,
     perLevel: [{ stat: 'area', value: 0.1 }],
+    over: { perLevel: [{ stat: 'area', value: 0.02 }], text: '+2 % Fläche und Größe' },
     locked: false,
   },
   {
@@ -39,6 +42,8 @@ const LIST: AxiomDef[] = [
     icon: 'mirror',
     maxLevel: 2,
     perLevel: [{ stat: 'amount', value: 1 }],
+    // No Überstufen: extra projectiles are the one thing that must stay rare.
+    over: null,
     locked: true,
   },
   {
@@ -49,6 +54,7 @@ const LIST: AxiomDef[] = [
     icon: 'sphere',
     maxLevel: 5,
     perLevel: [{ stat: 'maxHp', value: 20 }],
+    over: { perLevel: [{ stat: 'maxHp', value: 5 }], text: '+5 Max-HP' },
     locked: false,
   },
   {
@@ -59,6 +65,7 @@ const LIST: AxiomDef[] = [
     icon: 'integral',
     maxLevel: 5,
     perLevel: [{ stat: 'regen', value: 0.25 }],
+    over: { perLevel: [{ stat: 'regen', value: 0.05 }], text: '+0,05 HP pro Sekunde' },
     locked: true,
   },
   {
@@ -69,6 +76,7 @@ const LIST: AxiomDef[] = [
     icon: 'chevrons',
     maxLevel: 5,
     perLevel: [{ stat: 'moveSpeed', value: 0.08 }],
+    over: { perLevel: [{ stat: 'moveSpeed', value: 0.01 }], text: '+1 % Lauftempo' },
     locked: false,
   },
   {
@@ -79,6 +87,7 @@ const LIST: AxiomDef[] = [
     icon: 'inward',
     maxLevel: 5,
     perLevel: [{ stat: 'magnet', value: 0.3 }],
+    over: { perLevel: [{ stat: 'magnet', value: 0.05 }], text: '+5 % Sammelradius' },
     locked: false,
   },
 ];

@@ -1,16 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { AXIOMS } from '../src/content/axioms.ts';
+import { AXIOM_LIST, AXIOMS } from '../src/content/axioms.ts';
 import { CHARACTERS } from '../src/content/characters.ts';
 import { ENEMIES } from '../src/content/enemies.ts';
-import { PLAYER, WEAPON_MAX_LEVEL } from '../src/content/tuning.ts';
-import { WEAPONS } from '../src/content/weapons.ts';
-import { addAxiom, addVertex, addWeapon, openCube, theoremSlots } from '../src/sim/build.ts';
-import { applyCard, banishKey, rollDraft } from '../src/sim/draft.ts';
+import { CORE_LEVEL, DRAFT, OVER, PLAYER, STAT_CAPS } from '../src/content/tuning.ts';
+import { BASE_WEAPONS, WEAPON_LIST, WEAPONS } from '../src/content/weapons.ts';
+import {
+  addAxiom,
+  addVertex,
+  addWeapon,
+  evolveWeapon,
+  openCube,
+  theoremSlots,
+  upgradeWeapon,
+} from '../src/sim/build.ts';
+import { applyCard, banishKey, draftCandidates, rollDraft } from '../src/sim/draft.ts';
 import { RunSession } from '../src/sim/run.ts';
-import { computeStats, effectiveParams, maxLevel, weaponParamsAt } from '../src/sim/stats.ts';
+import {
+  axiomDone,
+  axiomMaxLevel,
+  computeStats,
+  coreLevel,
+  effectiveParams,
+  milestoneAt,
+  weaponParamsAt,
+} from '../src/sim/stats.ts';
 import { damageEnemy } from '../src/sim/systems/combat.ts';
 import { spawnEnemy } from '../src/sim/systems/director.ts';
-import { createWorld } from '../src/sim/world.ts';
+import { createWorld, recomputeStats } from '../src/sim/world.ts';
 import { config } from './helpers.ts';
 
 describe('stats', () => {
@@ -22,16 +38,65 @@ describe('stats', () => {
     expect(fast.cooldown).toBe(PLAYER.minCooldown);
   });
 
-  it('weapon levels apply in order; theorems start from the maxed parent', () => {
+  it('weapon levels apply in order; theorems start from the parent at its core level', () => {
     const spitze = WEAPONS.spitze;
-    expect(maxLevel(spitze)).toBe(WEAPON_MAX_LEVEL);
+    expect(coreLevel(spitze)).toBe(CORE_LEVEL);
+    expect(coreLevel(WEAPONS.sternpolygon)).toBe(CORE_LEVEL);
     expect(weaponParamsAt(spitze, 1).amount).toBe(1);
     expect(weaponParamsAt(spitze, 2).amount).toBe(2);
-    const maxed = weaponParamsAt(spitze, WEAPON_MAX_LEVEL);
-    const star = weaponParamsAt(WEAPONS.sternpolygon, 1);
+    const maxed = weaponParamsAt(spitze, CORE_LEVEL);
+    const star = weaponParamsAt(WEAPONS.sternpolygon, CORE_LEVEL);
     expect(star.allVertices).toBe(1);
     expect(star.pierce).toBe(maxed.pierce + 2);
     expect(star.damage).toBe(maxed.damage);
+  });
+
+  it('base weapons have their core levels and a milestone cycle; axioms but Symmetrie grow on', () => {
+    for (const d of BASE_WEAPONS) {
+      expect(d.levels, d.id).toHaveLength(CORE_LEVEL - 1);
+      expect(d.over?.length ?? 0, d.id).toBeGreaterThan(0);
+    }
+    for (const a of AXIOM_LIST) {
+      expect(axiomMaxLevel(a), a.id).toBe(a.id === 'symmetrie' ? a.maxLevel : OVER.maxLevel);
+    }
+  });
+
+  it('Überstufen add damage every level and a milestone every five levels', () => {
+    const spitze = WEAPONS.spitze;
+    const core = weaponParamsAt(spitze, CORE_LEVEL);
+    const lv9 = weaponParamsAt(spitze, CORE_LEVEL + 1);
+    expect(lv9.damage).toBeCloseTo(core.damage * (1 + OVER.damagePerLevel));
+    expect(lv9.pierce).toBe(core.pierce);
+    expect(milestoneAt(spitze, CORE_LEVEL)).toBeNull();
+    expect(milestoneAt(spitze, 9)).toBeNull();
+    expect(milestoneAt(spitze, 10)).toBe(spitze.over![0]);
+    expect(milestoneAt(spitze, 15)).toBe(spitze.over![1]);
+    expect(weaponParamsAt(spitze, 10).pierce).toBe(core.pierce + 1);
+    const top = weaponParamsAt(spitze, OVER.maxLevel);
+    expect(top.damage).toBeCloseTo(
+      core.damage * (1 + OVER.damagePerLevel * (OVER.maxLevel - CORE_LEVEL)),
+    );
+  });
+
+  it('Überstufen stay within their limits even at the last level', () => {
+    for (const d of WEAPON_LIST) {
+      const core = weaponParamsAt(d, CORE_LEVEL);
+      const top = weaponParamsAt(d, OVER.maxLevel);
+      expect(top.amount, d.id).toBeLessThanOrEqual(core.amount + OVER.maxExtraAmount);
+      expect(top.cooldown, d.id).toBeGreaterThanOrEqual(core.cooldown * OVER.minCooldownFactor);
+      expect(top.slow, d.id).toBeLessThanOrEqual(Math.max(core.slow, OVER.maxSlow));
+      expect(top.damage, d.id).toBeGreaterThan(core.damage);
+    }
+  });
+
+  it('axioms grow with smaller steps past their core; stats respect their caps', () => {
+    const potenz = AXIOMS.potenz;
+    const s = computeStats(CHARACTERS.delta, [], [{ def: potenz, level: potenz.maxLevel + 10 }]);
+    expect(s.might).toBeCloseTo(1 + 0.1 * potenz.maxLevel + 0.02 * 10);
+    const fast = computeStats(CHARACTERS.delta, [], [{ def: AXIOMS.beschleunigung, level: 99 }]);
+    expect(fast.moveSpeed).toBe(STAT_CAPS.moveSpeed);
+    const wide = computeStats(CHARACTERS.delta, [{ stat: 'area', value: 5 }], []);
+    expect(wide.area).toBe(STAT_CAPS.area);
   });
 
   it('effective params fold in player stats', () => {
@@ -110,10 +175,14 @@ describe('draft', () => {
     }
   });
 
-  it('shows the golden Q.E.D. card once a maxed weapon has its axiom', () => {
+  it('shows the golden Q.E.D. card once a weapon at its core level has its axiom', () => {
     const w = createWorld(config(2, { unlockedAxioms: ['symmetrie'] }));
     const slot = w.player.weapons[0]!;
-    slot.level = WEAPON_MAX_LEVEL;
+    slot.level = CORE_LEVEL - 1;
+    addAxiom(w, AXIOMS.symmetrie);
+    expect(theoremSlots(w)).toEqual([]);
+    w.player.axioms.fill(null);
+    slot.level = CORE_LEVEL;
     expect(theoremSlots(w)).toEqual([]);
     addAxiom(w, AXIOMS.symmetrie);
     expect(theoremSlots(w)).toEqual([0]);
@@ -128,17 +197,59 @@ describe('draft', () => {
     }
   });
 
+  it('a theorem keeps the level and the Überstufen of its weapon', () => {
+    const w = createWorld(config(2, { unlockedAxioms: ['symmetrie'] }));
+    const slot = w.player.weapons[0]!;
+    slot.level = 11;
+    upgradeWeapon(w, 0);
+    expect(w.run.maxWeaponLevel).toBe(12);
+    addAxiom(w, AXIOMS.symmetrie);
+    expect(theoremSlots(w)).toEqual([0]);
+    evolveWeapon(w, 0);
+    expect(slot.def.id).toBe('sternpolygon');
+    expect(slot.level).toBe(12);
+    const base = weaponParamsAt(WEAPONS.sternpolygon, CORE_LEVEL);
+    expect(weaponParamsAt(WEAPONS.sternpolygon, 12).damage).toBeCloseTo(
+      base.damage * (1 + OVER.damagePerLevel * 4),
+    );
+  });
+
+  it('Überstufe cards weigh less than core levels', () => {
+    const w = createWorld(config(5));
+    const weight = (): number =>
+      draftCandidates(w).find((c) => c.card.kind === 'upgradeWeapon')!.weight;
+    expect(weight()).toBe(DRAFT.weightUpgradeWeapon);
+    w.player.weapons[0]!.level = CORE_LEVEL;
+    expect(weight()).toBeCloseTo(DRAFT.weightUpgradeWeapon * DRAFT.overWeight);
+  });
+
+  it('stops offering an axiom whose next level would only push capped stats', () => {
+    const w = createWorld(config(6));
+    const i = addAxiom(w, AXIOMS.beschleunigung);
+    const a = w.player.axioms[i]!;
+    a.level = 40;
+    recomputeStats(w);
+    expect(axiomDone(w.stats, a)).toBe(false);
+    a.level = 60;
+    recomputeStats(w);
+    expect(w.stats.moveSpeed).toBe(STAT_CAPS.moveSpeed);
+    expect(axiomDone(w.stats, a)).toBe(true);
+    for (let k = 0; k < 30; k++) {
+      for (const c of rollDraft(w)) expect(c.kind === 'upgradeAxiom' && c.slot === i).toBe(false);
+    }
+  });
+
   it('falls back to heal and splitter when everything is maxed', () => {
     const w = createWorld(config(4));
-    w.player.weapons[0]!.level = WEAPON_MAX_LEVEL;
+    w.player.weapons[0]!.level = OVER.maxLevel;
     for (const id of ['kreisbahn', 'welle'] as const) {
       const i = addWeapon(w, WEAPONS[id]);
-      w.player.weapons[i]!.level = WEAPON_MAX_LEVEL;
+      w.player.weapons[i]!.level = OVER.maxLevel;
     }
     // Axioms that complete none of the owned weapons' theorems.
     for (const id of ['potenz', 'volumen', 'beschleunigung'] as const) {
       const i = addAxiom(w, AXIOMS[id]);
-      w.player.axioms[i]!.level = AXIOMS[id].maxLevel;
+      w.player.axioms[i]!.level = axiomMaxLevel(AXIOMS[id]);
     }
     const cards = rollDraft(w);
     expect(cards.map((c) => c.kind)).toEqual(['heal', 'splitter']);

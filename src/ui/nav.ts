@@ -41,8 +41,9 @@ export class SpatialNav {
     this.items = items;
     this.index = -1;
     for (const [i, el] of items.entries()) {
+      // The mouse only moves the highlight; scrolling under the pointer would feel like a jump.
       el.onmouseenter = () => {
-        if (i !== this.index) this.focus(i, true);
+        if (i !== this.index) this.focus(i, true, false);
       };
     }
     this.focus(focus, false);
@@ -56,7 +57,8 @@ export class SpatialNav {
     return this.index;
   }
 
-  focus(i: number, audible = true): void {
+  /** `scroll`: keep the item on screen (keyboard and gamepad); the mouse passes false. */
+  focus(i: number, audible = true, scroll = true): void {
     if (this.items.length === 0) return;
     const next = Math.max(0, Math.min(this.items.length - 1, i));
     if (next === this.index) return;
@@ -64,7 +66,7 @@ export class SpatialNav {
     this.index = next;
     const el = this.items[next]!;
     el.classList.add('focused');
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (scroll) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (audible) this.sound.play('move');
     this.onFocus?.(el, next);
   }

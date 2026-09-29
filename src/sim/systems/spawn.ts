@@ -67,8 +67,8 @@ export function spawnBullet(
   if (!b) return null;
   b.x = b.px = x;
   b.y = b.py = y;
-  b.vx = vx;
-  b.vy = vy;
+  b.vx = vx * w.mut.bulletSpeed;
+  b.vy = vy * w.mut.bulletSpeed;
   b.r = ENEMY.bulletRadius;
   b.damage = damage;
   b.life = ticks(ENEMY.bulletLife);

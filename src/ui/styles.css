@@ -175,6 +175,12 @@ body {
   color: var(--violet);
 }
 
+/* Room for six digits: the crystal does not hop left when the count grows. */
+.hud-splitter-value {
+  min-width: 6ch;
+  text-align: right;
+}
+
 .hud-build {
   position: absolute;
   left: 14px;
@@ -216,12 +222,14 @@ body {
   color: var(--dim);
 }
 
+/* Monospaced and padded (see `S.hud.position`): the label keeps its width while walking. */
 .hud-position {
   position: absolute;
   right: 20px;
   bottom: 16px;
   font-family: var(--mono);
   font-size: 13px;
+  white-space: pre;
   color: var(--faint);
 }
 
@@ -298,25 +306,38 @@ body {
   right: 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   align-items: flex-end;
 }
 
+/* Spacing as a margin (not `gap`), so a leaving toast can fold it away with its height. */
 .toast {
   min-width: 240px;
+  margin-bottom: 10px;
   padding: 10px 14px;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid rgba(255, 210, 63, 0.55);
   box-shadow: 0 0 18px rgba(255, 210, 63, 0.18);
   animation: toast-in 0.3s ease-out;
   transition:
-    opacity 0.4s,
-    transform 0.4s;
+    opacity 0.35s,
+    transform 0.35s,
+    height 0.25s 0.3s,
+    padding 0.25s 0.3s,
+    margin 0.25s 0.3s,
+    border-width 0.25s 0.3s;
 }
 
+/* Fades out first, then folds up; the toasts below slide up instead of jumping. */
 .toast.leaving {
   opacity: 0;
   transform: translateX(30px);
+  height: 0 !important;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-width: 0;
+  border-bottom-width: 0;
 }
 
 .toast-title {
@@ -401,6 +422,7 @@ body {
 .menu-row {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 14px;
   margin-top: 22px;
 }
@@ -480,6 +502,11 @@ body {
 
 /* ---------------------------------------------------------------------------------- draft */
 
+/* Anchored at the top instead of centred: a taller hand grows downwards, nothing above moves. */
+.modal.draft {
+  align-items: flex-start;
+}
+
 .draft-panel {
   display: flex;
   flex-direction: column;
@@ -487,6 +514,7 @@ body {
   gap: 20px;
   max-width: 1100px;
   width: 100%;
+  margin-top: max(0px, calc(50vh - 300px));
 }
 
 .draft-head {
@@ -498,6 +526,7 @@ body {
 .draft-heading {
   display: flex;
   flex-direction: column;
+  min-width: 22em;
 }
 
 .draft-title {
@@ -522,25 +551,33 @@ body {
   flex-wrap: wrap;
 }
 
+/* The card is the hit area and never moves; its face carries the look and lifts when selected. */
 .card {
   --card-color: var(--cyan);
   position: relative;
+  display: flex;
   width: 228px;
   min-height: 310px;
+  cursor: pointer;
+  animation: card-in 0.3s ease-out backwards;
+}
+
+.card-face {
+  position: relative;
+  flex: 1;
+  min-width: 0;
   padding: 18px 16px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 8px;
-  cursor: pointer;
   background: linear-gradient(180deg, rgba(20, 24, 38, 0.96), rgba(10, 12, 20, 0.96));
   border: 1px solid color-mix(in srgb, var(--card-color) 35%, transparent);
   transition:
     transform 0.14s ease-out,
     border-color 0.14s,
     box-shadow 0.14s;
-  animation: card-in 0.3s ease-out backwards;
 }
 
 .card:nth-child(2) {
@@ -562,7 +599,7 @@ body {
   }
 }
 
-.card.selected {
+.card.selected .card-face {
   transform: translateY(-8px);
   border-color: var(--card-color);
   box-shadow:
@@ -572,12 +609,15 @@ body {
 
 .card.gold {
   --card-color: var(--gold);
+}
+
+.card.gold .card-face {
   background: linear-gradient(180deg, rgba(48, 38, 10, 0.96), rgba(16, 13, 6, 0.96));
   border-color: rgba(255, 210, 63, 0.7);
   box-shadow: 0 0 22px rgba(255, 210, 63, 0.3);
 }
 
-.card.gold::after {
+.card.gold .card-face::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -637,12 +677,18 @@ body {
 }
 
 .card-badge {
+  min-height: 20px;
   padding: 2px 10px;
   font-size: 12px;
+  line-height: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--bg);
   background: var(--card-color);
+}
+
+.card-badge.blank {
+  visibility: hidden;
 }
 
 .card-desc {
@@ -661,7 +707,7 @@ body {
   --card-color: var(--red);
 }
 
-.draft.banishing .card.selected::before {
+.draft.banishing .card.selected .card-face::before {
   content: '×';
   position: absolute;
   top: 4px;
@@ -670,14 +716,27 @@ body {
   color: var(--red);
 }
 
+/* Always takes its line; only shown while "Radieren" waits for a card. */
 .draft-hint {
+  min-height: 1.4em;
   font-size: 14px;
+  line-height: 1.4;
   color: var(--red);
+  visibility: hidden;
+}
+
+.draft.banishing .draft-hint {
+  visibility: visible;
 }
 
 .draft-actions {
   display: flex;
   gap: 12px;
+}
+
+/* "Radieren ×3" and "Abbrechen" share one width, so the bar does not shift on toggle. */
+.draft-actions .btn {
+  min-width: 16em;
 }
 
 /* ---------------------------------------------------------------------------------- pause */
@@ -731,6 +790,8 @@ body {
 }
 
 .slot-level {
+  min-width: 5.5ch;
+  text-align: right;
   font-size: 12px;
   font-weight: 700;
   color: var(--slot-color);
@@ -750,13 +811,6 @@ body {
   color: var(--faint);
   border-left: 2px dashed rgba(255, 255, 255, 0.1);
   background: none;
-}
-
-.pause-prompt {
-  margin-top: 18px;
-  text-align: center;
-  font-size: 16px;
-  color: var(--red);
 }
 
 /* -------------------------------------------------------------------------------- results */
@@ -878,6 +932,11 @@ body {
   color: var(--gold);
 }
 
+.results-note.unlock {
+  font-weight: 700;
+  color: var(--gold);
+}
+
 .results-proofs {
   margin-top: 8px;
 }
@@ -921,11 +980,13 @@ body {
 
 /* ------------------------------------------------------------------------ debug & errors */
 
+/* Fixed width with padded numbers: the box does not breathe with the frame rate. */
 .debug-overlay {
   position: absolute;
   right: 12px;
   bottom: 40px;
-  max-width: 440px;
+  width: 70ch;
+  max-width: calc(100vw - 24px);
   white-space: pre-wrap;
   margin: 0;
   padding: 8px 10px;

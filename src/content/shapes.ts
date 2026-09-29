@@ -100,6 +100,27 @@ function inward(): ShapePath[] {
   return [circle(0.24), lines(segs)];
 }
 
+/** Parabola opening downwards, apex at (0, -0.5). */
+function parabola(): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const x = -0.9 + (1.8 * i) / 12;
+    pts.push(x, -0.5 + 1.1 * x * x);
+  }
+  return pts;
+}
+
+/** Lemniscate of Bernoulli (the infinity sign), stretched a little in y. */
+function lemniscate(n: number): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i * Math.PI * 2) / n;
+    const d = 1 + Math.sin(t) ** 2;
+    pts.push(Math.cos(t) / d, (1.2 * Math.sin(t) * Math.cos(t)) / d);
+  }
+  return pts;
+}
+
 /** Sierpinski triangle of depth 1: outer triangle plus the inverted middle one. */
 function sierpinski(): ShapePath[] {
   const o = ngon(3, 1);
@@ -178,6 +199,26 @@ const GEOMETRY: Record<ShapeId, readonly ShapePath[]> = {
     ]),
   ],
   inward: inward(),
+  // A circle and its tangent, touching in one point.
+  tangent: [circle(0.62, false, 0, 0.26), lines([-1, -0.36, 1, -0.36])],
+  // A curve through its maximum.
+  extremum: [lines(polyline(parabola())), circle(0.17, true, 0, -0.5)],
+  infinity: [poly(lemniscate(32), false)],
+  dice: [
+    poly(ngon(4, 1.05, Math.PI / 4), false),
+    circle(0.15, true, -0.36, -0.36),
+    circle(0.15, true, 0, 0),
+    circle(0.15, true, 0.36, 0.36),
+  ],
+  // From n to n + 1.
+  stairs: [
+    lines(
+      polyline([
+        -0.9, 0.75, -0.45, 0.75, -0.45, 0.25, 0, 0.25, 0, -0.25, 0.45, -0.25, 0.45, -0.75, 0.9,
+        -0.75,
+      ]),
+    ),
+  ],
 };
 
 export function shapeGeometry(id: ShapeId): readonly ShapePath[] {

@@ -1,8 +1,8 @@
 import { hex } from '../content/palette.ts';
 import { S, clock, formName } from '../content/strings.de.ts';
-import { PLAYER } from '../content/tuning.ts';
+import { OVER, PLAYER } from '../content/tuning.ts';
 import type { Action } from '../app/input.ts';
-import { maxLevel } from '../sim/stats.ts';
+import { axiomDone } from '../sim/stats.ts';
 import type { World } from '../sim/world.ts';
 import { buildSvg } from './buildView.ts';
 import { h, shapeIcon, show } from './dom.ts';
@@ -34,7 +34,6 @@ export class PauseView {
   /** Two columns: vertex i (weapon) next to edge i (axiom). */
   private readonly slots: HTMLElement;
   private readonly stats: HTMLElement;
-  private readonly prompt: HTMLElement;
   private readonly resumeBtn: HTMLButtonElement;
   private readonly settingsBtn: HTMLButtonElement;
   private readonly giveUpBtn: HTMLButtonElement;
@@ -53,7 +52,6 @@ export class PauseView {
     this.build = h('div', 'pause-build');
     this.slots = h('div', 'pause-slots');
     this.stats = h('div', 'stat-list');
-    this.prompt = h('div', 'pause-prompt hidden', S.pause.confirmGiveUp);
     this.resumeBtn = h('button', 'btn primary', S.pause.resume);
     this.settingsBtn = h('button', 'btn', S.pause.settings);
     this.giveUpBtn = h('button', 'btn', S.pause.giveUp);
@@ -76,7 +74,14 @@ export class PauseView {
       this.cancelGiveUp();
     });
     this.mainRow = h('div', 'menu-row', this.resumeBtn, this.settingsBtn, this.giveUpBtn);
-    this.confirmRow = h('div', 'menu-row hidden', this.yesBtn, this.noBtn);
+    // The question sits in the button row: confirming swaps one row for another of equal height.
+    this.confirmRow = h(
+      'div',
+      'menu-row hidden',
+      h('span', 'foot-prompt', S.pause.confirmGiveUp),
+      this.yesBtn,
+      this.noBtn,
+    );
 
     this.root = h(
       'div',
@@ -93,7 +98,6 @@ export class PauseView {
           this.slots,
           h('div', 'pause-col', h('div', 'section-title', S.pause.stats), this.stats),
         ),
-        this.prompt,
         this.mainRow,
         this.confirmRow,
       ),
@@ -128,7 +132,6 @@ export class PauseView {
 
   private setConfirming(v: boolean, focus: HTMLButtonElement = this.resumeBtn): void {
     this.confirming = v;
-    show(this.prompt, v);
     show(this.mainRow, !v);
     show(this.confirmRow, v);
     // Confirming starts on "Abbrechen" so a double press never gives up by accident.
@@ -156,12 +159,8 @@ export class PauseView {
       }
       const wpn = p.weapons[i];
       if (wpn) {
-        const max = maxLevel(wpn.def);
-        const lv = wpn.def.theoremOf
-          ? 'Q.E.D.'
-          : wpn.level >= max
-            ? S.draft.max
-            : `${S.hud.level} ${wpn.level}`;
+        // Theorems show their level too; `.slot.gold` colours it.
+        const lv = wpn.level >= OVER.maxLevel ? S.draft.max : `${S.hud.level} ${wpn.level}`;
         const row = h(
           'div',
           `slot${wpn.def.theoremOf ? ' gold' : ''}`,
@@ -177,7 +176,7 @@ export class PauseView {
       }
       const ax = p.axioms[i];
       if (ax) {
-        const lv = ax.level >= ax.def.maxLevel ? S.draft.max : `${S.hud.level} ${ax.level}`;
+        const lv = axiomDone(w.stats, ax) ? S.draft.max : `${S.hud.level} ${ax.level}`;
         const row = h(
           'div',
           'slot',

@@ -1,5 +1,5 @@
 import { AXIOM_LIST, AXIOMS } from '../content/axioms.ts';
-import { DRAFT } from '../content/tuning.ts';
+import { DRAFT, OVER } from '../content/tuning.ts';
 import type { AxiomId, WeaponId } from '../content/types.ts';
 import { BASE_WEAPONS, WEAPONS } from '../content/weapons.ts';
 import {
@@ -13,7 +13,7 @@ import {
   upgradeAxiom,
   upgradeWeapon,
 } from './build.ts';
-import { maxLevel } from './stats.ts';
+import { axiomDone, coreLevel } from './stats.ts';
 import { healPlayer } from './systems/combat.ts';
 import type { World } from './world.ts';
 
@@ -47,12 +47,14 @@ export function draftCandidates(w: World): Weighted[] {
   const vertexFree = freeVertex(p) >= 0;
   const edgeFree = freeEdge(p) >= 0;
 
+  // Überstufen (past the core levels) weigh less: filling the polygon comes first.
   for (let i = 0; i < p.vertices; i++) {
     const s = p.weapons[i];
-    if (!s || s.level >= maxLevel(s.def) || w.banished.has(`weapon:${s.def.id}`)) continue;
+    if (!s || s.level >= OVER.maxLevel || w.banished.has(`weapon:${s.def.id}`)) continue;
+    const over = s.level >= coreLevel(s.def) ? DRAFT.overWeight : 1;
     out.push({
       card: { kind: 'upgradeWeapon', slot: i, weapon: s.def.id, level: s.level + 1 },
-      weight: DRAFT.weightUpgradeWeapon,
+      weight: DRAFT.weightUpgradeWeapon * over,
     });
   }
   if (vertexFree) {
@@ -66,10 +68,11 @@ export function draftCandidates(w: World): Weighted[] {
   }
   for (let i = 0; i < p.vertices; i++) {
     const a = p.axioms[i];
-    if (!a || a.level >= a.def.maxLevel || w.banished.has(`axiom:${a.def.id}`)) continue;
+    if (!a || axiomDone(w.stats, a) || w.banished.has(`axiom:${a.def.id}`)) continue;
+    const over = a.level >= a.def.maxLevel ? DRAFT.overWeight : 1;
     out.push({
       card: { kind: 'upgradeAxiom', slot: i, axiom: a.def.id, level: a.level + 1 },
-      weight: DRAFT.weightUpgradeAxiom,
+      weight: DRAFT.weightUpgradeAxiom * over,
     });
   }
   if (edgeFree) {

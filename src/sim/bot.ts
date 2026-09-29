@@ -1,5 +1,8 @@
+import { AXIOMS } from '../content/axioms.ts';
+import { WEAPONS } from '../content/weapons.ts';
 import type { Card } from './draft.ts';
 import { bossDist, enemiesInCircle } from './query.ts';
+import { isOverLevel } from './stats.ts';
 import { AI_ATTACK, AI_WINDUP } from './systems/enemies.ts';
 import type { InputState } from './systems/player.ts';
 import type { Enemy, World } from './world.ts';
@@ -187,21 +190,32 @@ function aim(dx: number, dy: number, stop: number): boolean {
   return true;
 }
 
-const PRIORITY: Record<Card['kind'], number> = {
-  theorem: 0,
-  upgradeWeapon: 1,
-  newWeapon: 2,
-  upgradeAxiom: 3,
-  newAxiom: 4,
-  heal: 5,
-  splitter: 6,
-};
+/** Lower wins: theorems, core weapon levels, new weapons, core axiom levels, new axioms, then
+ * Überstufen (weapons before axioms), heal, splitter. */
+function priority(c: Card): number {
+  switch (c.kind) {
+    case 'theorem':
+      return 0;
+    case 'upgradeWeapon':
+      return isOverLevel(WEAPONS[c.weapon], c.level) ? 5 : 1;
+    case 'newWeapon':
+      return 2;
+    case 'upgradeAxiom':
+      return c.level > AXIOMS[c.axiom].maxLevel ? 6 : 3;
+    case 'newAxiom':
+      return 4;
+    case 'heal':
+      return 7;
+    case 'splitter':
+      return 8;
+  }
+}
 
-/** Card choice: theorems first, then weapon levels, new weapons, axioms. */
+/** Card choice by `priority`; the first of equals wins. */
 export function botChoose(cards: readonly Card[]): number {
   let best = 0;
   for (let i = 1; i < cards.length; i++) {
-    if (PRIORITY[cards[i]!.kind] < PRIORITY[cards[best]!.kind]) best = i;
+    if (priority(cards[i]!) < priority(cards[best]!)) best = i;
   }
   return best;
 }
