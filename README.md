@@ -106,6 +106,14 @@ Mögliche Schritte:
 `--soft` schaltet auf Software-GL (SwiftShader) um. Das ist deutlich langsamer und für
 FPS-Messungen nicht aussagekräftig.
 
+## Veröffentlichen
+
+Ein Push auf `master` baut das Spiel mit GitHub Actions (`.github/workflows/deploy.yml`: `npm ci`,
+`npm run check`, `npm run build`) und veröffentlicht `dist/` auf GitHub Pages; im Actions-Tab
+startet „Run workflow“ dasselbe von Hand. Einmalig nötig: unter Settings → Pages bei „Build and
+deployment“ als Source „GitHub Actions“ wählen. Dank `base: './'` läuft der Build auch im
+Unterpfad `https://<user>.github.io/<repo>/`.
+
 ## URL-Parameter und Debug
 
 | Parameter        | Wirkung                                                                                                                                                           |
